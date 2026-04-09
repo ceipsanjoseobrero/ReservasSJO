@@ -1,21 +1,19 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CEIP San José Obrero — Reservas</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <style>
-body { margin:0; font-family: system-ui, sans-serif; background: linear-gradient(135deg, #eff6ff, #f5f3ff); min-height: 100vh; }
-.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  body { margin:0; font-family:system-ui; background:linear-gradient(135deg,#eff6ff,#f5f3ff); min-height:100vh; }
 </style>
 </head>
 <body>
@@ -24,150 +22,64 @@ body { margin:0; font-family: system-ui, sans-serif; background: linear-gradient
 <script type="text/babel">
 const { useState, useEffect } = React;
 
-// Firebase Config
-const firebaseConfig = {
+firebase.initializeApp({
   apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtswdw8w07TnjAA",
   authDomain: "ceip-sjo-reservas.firebaseapp.com",
   databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "ceip-sjo-reservas",
-  storageBucket: "ceip-sjo-reservas.firebasestorage.app",
-  messagingSenderId: "448340997755",
   appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
-};
-
-firebase.initializeApp(firebaseConfig);
+});
 const db = firebase.database();
 
 const INITIAL_RESOURCES = [
-  {id:"informatica", name:"Aula de Informática", icon:"🖥️", units:1, color:"#6366f1"},
-  {id:"proyector", name:"Proyector Móvil", icon:"📽️", units:1, color:"#f59e0b"},
-  {id:"tablets", name:"Tablets / iPads", icon:"📱", units:15, color:"#10b981"},
-  {id:"biblioteca", name:"Biblioteca", icon:"📚", units:1, color:"#8b5cf6"},
-  {id:"portatiles", name:"Portátiles", icon:"💻", units:20, color:"#3b82f6"},
-  {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"}
+  {id:"informatica",name:"Aula de Informática",icon:"🖥️",units:1,color:"#6366f1"},
+  {id:"proyector",name:"Proyector Móvil",icon:"📽️",units:1,color:"#f59e0b"}
 ];
-
-const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
-const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
-
-function dKey(date) { return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`; }
-function rKey(rid, ds, h) { return `${rid}__${ds}__${h}`; }
 
 function App() {
   const [reservations, setReservations] = useState({});
-  const [resources, setResources] = useState(INITIAL_RESOURCES);
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [modal, setModal] = useState(null);
-  const [selectedResource, setSelectedResource] = useState(null);
-  const [selectedDay, setSelectedDay] = useState(null);
-  const [selectedHour, setSelectedHour] = useState(null);
-  const [adminMode, setAdminMode] = useState(false);
+  const [modal, setModal] = useState(false);
+  const [selected, setSelected] = useState({});
 
-  // Sincronización Firebase
   useEffect(() => {
-    const resRef = db.ref('reservations');
-    const resouRef = db.ref('resources');
-
-    resRef.on('value', snap => setReservations(snap.val() || {}));
-    resouRef.on('value', snap => {
-      const data = snap.val();
-      if (!data || data.length === 0) {
-        resouRef.set(INITIAL_RESOURCES);
-        setResources(INITIAL_RESOURCES);
-      } else {
-        setResources(data);
-      }
-    });
-
-    return () => { resRef.off(); resouRef.off(); };
+    db.ref('reservations').on('value', snap => setReservations(snap.val() || {}));
   }, []);
 
-  const saveReservations = (newRes) => {
+  const createRes = (name) => {
+    const key = "test_" + Date.now();
+    const newRes = {...reservations, [key]: {name: name || "Prueba", timestamp: Date.now()}};
     db.ref('reservations').set(newRes);
-    setReservations(newRes);
+    setModal(false);
   };
 
-  const openModal = (resource, day, hour) => {
-    setSelectedResource(resource);
-    setSelectedDay(day);
-    setSelectedHour(hour);
-    setModal(true);
-  };
+  return React.createElement('div', {className:"p-8"}, [
+    React.createElement('h1', {className:"text-4xl font-bold text-center mb-4"}, "Reservas CEIP San José Obrero"),
+    React.createElement('p', {className:"text-center text-green-600 mb-8"}, "✅ Sincronizado con Firebase"),
 
-  const createReservation = (name) => {
-    if (!selectedResource || !selectedDay || !selectedHour) return;
-    const key = rKey(selectedResource.id, dKey(selectedDay), selectedHour);
-    const newRes = { ...reservations, [key]: {
-      resourceId: selectedResource.id,
-      resourceName: selectedResource.name,
-      day: dKey(selectedDay),
-      hour: selectedHour,
-      name: name || "Reserva",
-      timestamp: Date.now()
-    }};
-    saveReservations(newRes);
-    setModal(null);
-  };
+    React.createElement('button', {
+      onClick: () => setModal(true),
+      className: "block mx-auto px-8 py-4 bg-indigo-600 text-white rounded-xl text-lg font-medium"
+    }, "Hacer una reserva de prueba"),
 
-  const weekDates = Array.from({length:5}, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() + i - d.getDay() + 1 + weekOffset * 7);
-    return d;
-  });
-
-  return React.createElement('div', {className: "p-6 max-w-7xl mx-auto"}, [
-    React.createElement('h1', {className: "text-4xl font-bold text-center text-indigo-700 mb-2"}, "Reservas CEIP San José Obrero"),
-    React.createElement('p', {className: "text-center text-green-600 font-medium mb-8"}, "✅ Sincronizado en tiempo real con Firebase"),
-
-    // Vista Semanal
-    React.createElement('div', {className: "bg-white rounded-2xl shadow overflow-hidden mb-8"}, 
-      React.createElement('div', {className: "grid grid-cols-6 bg-gray-100"}, 
-        React.createElement('div', {className: "p-4 font-bold text-center"}, "Hora"),
-        DAYS.map((day, i) => React.createElement('div', {key:i, className: "p-4 font-bold text-center"}, day))
-      ),
-      HOURS.map((hour, hIdx) => 
-        React.createElement('div', {key:hIdx, className: "grid grid-cols-6 border-t"}, 
-          React.createElement('div', {className: "p-4 border-r font-medium"}, hour),
-          weekDates.map((day, dIdx) => {
-            const key = rKey(resources[0]?.id || "informatica", dKey(day), hour);
-            const res = reservations[key];
-            return React.createElement('div', {
-              key: dIdx,
-              className: "p-4 border-r min-h-[80px] cursor-pointer hover:bg-blue-50",
-              onClick: () => openModal(resources[0], day, hour)
-            }, res ? React.createElement('div', {className: "bg-green-100 p-2 rounded text-sm"}, res.name) : "")
-          })
-        )
-      )
-    ),
-
-    // Modal
-    modal && React.createElement('div', {className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50"}, 
-      React.createElement('div', {className: "bg-white rounded-2xl p-8 w-full max-w-md mx-4"}, 
-        React.createElement('h2', {className: "text-2xl font-bold mb-6"}, "Nueva Reserva"),
-        React.createElement('input', {
-          type: "text",
-          placeholder: "Nombre de la clase o actividad",
-          className: "w-full border border-gray-300 p-4 rounded-xl mb-6 focus:outline-none focus:border-indigo-500",
-          onKeyDown: (e) => { if (e.key === "Enter") createReservation(e.target.value); }
+    modal && React.createElement('div', {className:"fixed inset-0 bg-black/70 flex items-center justify-center"}, 
+      React.createElement('div', {className:"bg-white p-8 rounded-2xl w-96"}, 
+        React.createElement('h2', {className:"text-2xl mb-4"}, "Nueva Reserva"),
+        React.createElement('input', { 
+          type: "text", 
+          placeholder: "Nombre de la reserva",
+          className: "w-full p-4 border rounded-xl mb-6",
+          onKeyDown: e => e.key === "Enter" && createRes(e.target.value)
         }),
-        React.createElement('div', {className: "flex gap-4"}, 
-          React.createElement('button', {
-            onClick: () => setModal(null),
-            className: "flex-1 py-4 bg-gray-200 rounded-xl font-medium"
-          }, "Cancelar"),
-          React.createElement('button', {
-            onClick: () => createReservation("Reserva"),
-            className: "flex-1 py-4 bg-indigo-600 text-white rounded-xl font-medium"
-          }, "Guardar Reserva")
-        )
+        React.createElement('button', {
+          onClick: () => createRes("Reserva de prueba"),
+          className: "w-full py-4 bg-indigo-600 text-white rounded-xl"
+        }, "Guardar")
       )
     )
   ]);
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(React.createElement(App));
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
 </body>
 </html>
