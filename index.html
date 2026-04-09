@@ -1,1 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CEIP San José Obrero — Reservas</title>
 
+<!-- Firebase PRIMERO, antes que todo -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+window._fbDb = null;
+try {
+  var _fbApp = firebase.initializeApp({
+    apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
+    authDomain: "ceip-sjo-reservas.firebaseapp.com",
+    databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "ceip-sjo-reservas",
+    storageBucket: "ceip-sjo-reservas.firebasestorage.app",
+    messagingSenderId: "448340997755",
+    appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
+  });
+  window._fbDb = firebase.database(_fbApp);
+  console.log("✅ Firebase OK");
+} catch(e) {
+  console.error("❌ Firebase error:", e.message);
+}
+</script>
+
+<!-- React y Babel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<style>
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff);min-height:100vh;}
+.sx{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+button,select,input{-webkit-appearance:none;font-family:inherit;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const {useState, useEffect, useRef} = React;
+const db = window._fbDb;
+
+// ── Constantes ─────────────────────────────────────────────────────
+const PASS = "biblioflix2024";
+const MAX_INT = 5, LOCK_MS = 60000;
+
+const AREAS = ["Infantil 3","Infantil 4","Infantil 5","1º Primaria","2º Primaria","3º Primaria","4º Primaria","5º Primaria","6º Primaria","1º ESO","2º ESO","Inglés","Ed. Física","Música","Francés","Religión","PT","AL"];
+
+const RES0 = [
+  {id:"informatica", name:"Aula de Informática", icon:"🖥️", units:1,  color:"#6366f1"},
+  {id:"proyector",   name:"Proyector Móvil",     icon:"📽️", units:1,  color:"#f59e0b"},
+  {id:"tablets",     name:"Tablets / iPads",     icon:"📱", units:15, color:"#10b981"},
+  {id:"biblioteca",  name:"Biblioteca",           icon:"📚", units:1,  color:"#8b5cf6"},
+  {id:"portatiles",  name:"Portátiles",           icon:"💻", units:20, color:"#3b82f6"},
+  {id:"matinal",     name:"Aula Matinal",         icon:"🌅", units:1,  color:"#ec4899"},
+];
+
+const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
+const HLABELS = ["8:00","9:00","10:00","11:00","☕","11:30","12:30","13:30","14:30"];
+const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
+const MONTHS = ["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio"];
+const MNUMS = [8,9,10,11,0,1,2,3,4,5];
+const COLORS = ["#6366f1","#f59e0b","#10b981","#8b5cf6","#3b82f6","#ec4899","#ef4444","#14b8a6","#f97316","#84cc16"];
+const ICONS = ["🖥️","📽️","📱","📚","💻","🌅","🎨","🔬","🎵","🏃","📐","📦"];
+
+// ── Helpers fecha ──────────────────────────────────────────────────
+function sy() { const n=new Date(); return n.getMonth()>=8?n.getFullYear():n.getFullYear()-1; }
+function dKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function rKey(rid,ds,h) { return `${rid}||${ds}||${h}`; }
+
+function weekDates(off) {
+  const now=new Date(), day=now.getDay(), diff=day===0?-6:1-day, mon=new Date(now);
+  mon.setDate(now.getDate()+diff+off*7);
+  return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+
+function monthDays(mi) {
+  const mn=MNUMS[mi], y=mn>=8?sy():sy()+1;
+  const first=new Date(y,mn,1), last=new Date(y,mn+1,0), days=[];
+  let dow=first.getDay(); dow=dow===0?6:dow-1;
+  for(let i=0;i<dow;i++) days.push(null);
+  for(let d=1;d<=last.getDate();d++) days.push(d);
+  return {days,year:y,month:mn};
+}
+
+// ── Seguridad ──────────────────────────────────────────────────────
+function getSec() { try{return JSON.parse(sessionStorage.getItem("_sec")||"{}");} catch{return{};} }
+function setSec(s) { try{sessionStorage.setItem("_sec",JSON.stringify(s));}catch{} }
+function failAttempt() {
+  const s=getSec(), a=(s.attempts||0)+1, lock=a>=MAX_INT?Date.now()+LOCK_MS:(s.lockedUntil||0);
+  setSec({attempts:a,lockedUntil:lock}); return {attempts:a,lockedUntil:lock};
+}
+function resetSec() { setSec({attempts:0,lockedUntil:0}); }
+function lockSecs() { return Math.max(0,Math.ceil(((getSec().lockedUntil||0)-Date.now())/1000)); }
+
+// ── App ────────────────────────────────────────────────────────────
+function App() {
+  const [view,    setView]    = useState("week");
+  const [area,    setArea]    = useState("");
+  const [res,     setRes]     = useState({});        // reservations
+  const [blocked, setBlocked] = useState({});
+  const [resources,setResources] = useState(RES0);
+  const [wOff,    setWOff]    = useState(0);
+  const [mIdx,    setMIdx]    = useState(()=>{ const i=MNUMS.indexOf(new Date().getMonth()); return i>=0?i:0; });
+  const [modal,   setModal]   = useState(null);
+  const [qty,     setQty]     = useState(1);
+  const [rFilt,   setRFilt]   = useState("all");
+  const [admin,   setAdmin]   = useState(false);
+  const [aTab,    setATab]    = useState("res");
+  const [loginOpen,setLogin]  = useState(false);
+  const [pw,      setPw]      = useState("");
+  const [pwErr,   setPwErr]   = useState("");
+  const [lockLeft,setLockLeft]= useState(0);
+  const [newR,    setNewR]    = useState({name:"",icon:"📦",units:1,color:COLORS[0]});
+  const [editId,  setEditId]  = useState(null);
+  const [editF,   setEditF]   = useState({});
+  const [bDate,   setBDate]   = useState("");
+  const [bLabel,  setBLabel]  = useState("");
+  const [fbOk,    setFbOk]    = useState(!!db);
+
+  // ── Firebase listeners ────────────────────────────────────────────
+  useEffect(()=>{
+    if(db) {
+      const r1 = db.ref("sjo/res").on("value",    s=>setRes(s.val()||{}));
+      const r2 = db.ref("sjo/blocked").on("value", s=>setBlocked(s.val()||{}));
+      const r3 = db.ref("sjo/resources").on("value",s=>{ if(s.val()) setResources(s.val()); });
+      return ()=>{ db.ref("sjo/res").off(); db.ref("sjo/blocked").off(); db.ref("sjo/resources").off(); };
+    } else {
+      try{const v=localStorage.getItem("sjo_res");     if(v) setRes(JSON.parse(v));}catch{}
+      try{const v=localStorage.getItem("sjo_blocked"); if(v) setBlocked(JSON.parse(v));}catch{}
+      try{const v=localStorage.getItem("sjo_rsrc");    if(v) setResources(JSON.parse(v));}catch{}
+    }
+  },[]);
+
+  // ── Lockout countdown ─────────────────────────────────────────────
+  useEffect(()=>{
+    if(!lockLeft) return;
+    const t=setInterval(()=>{ const s=lockSecs(); setLockLeft(s); if(!s) clearInterval(t); },1000);
+    return ()=>clearInterval(t);
+  },[lockLeft]);
+
+  // ── Guardar ───────────────────────────────────────────────────────
+  function saveRes(v)  { setRes(v);       if(db) db.ref("sjo/res").set(v);       else { try{localStorage.setItem("sjo_res",JSON.stringify(v));}catch{} } }
+  function saveBlk(v)  { setBlocked(v);   if(db) db.ref("sjo/blocked").set(v);   else { try{localStorage.setItem("sjo_blocked",JSON.stringify(v));}catch{} } }
+  function saveRsrc(v) { setResources(v); if(db) db.ref("sjo/resources").set(v); else { try{localStorage.setItem("sjo_rsrc",JSON.stringify(v));}catch{} } }
+
+  // ── Getters ───────────────────────────────────────────────────────
+  function slot(rid,ds,h)   { return res[rKey(rid,ds,h)]||[]; }
+  function used(rid,ds,h)   { return slot(rid,ds,h).reduce((a,b)=>a+b.qty,0); }
+  function myQty(rid,ds,h)  { return (slot(rid,ds,h).find(e=>e.area===area)||{}).qty||0; }
+  function isBlocked(ds)    { return !!blocked["b__"+ds]; }
+
+  // ── Reservar ──────────────────────────────────────────────────────
+  function openModal(rid,ds,h,label) {
+    if(!area) return alert("Selecciona tu área primero.");
+    if(isBlocked(ds)) return alert("Día bloqueado: "+(blocked["b__"+ds]||""));
+    setModal({rid,ds,h,label}); setQty(1);
+  }
+
+  function makeRes() {
+    const {rid,ds,h}=modal, r=resources.find(x=>x.id===rid);
+    const u=used(rid,ds,h);
+    if(u+qty>r.units) return alert(`Solo quedan ${r.units-u} unidades.`);
+    const k=rKey(rid,ds,h), ex=res[k]||[], idx=ex.findIndex(e=>e.area===area);
+    const up = idx>=0 ? ex.map((e,i)=>i===idx?{...e,qty:e.qty+qty}:e) : [...ex,{area,qty}];
+    saveRes({...res,[k]:up}); setModal(null);
+  }
+
+  function cancelRes(rid,ds,h) {
+    const k=rKey(rid,ds,h), up=(res[k]||[]).filter(e=>e.area!==area);
+    const n={...res}; up.length?(n[k]=up):delete n[k]; saveRes(n);
+  }
+
+  // ── Login admin ───────────────────────────────────────────────────
+  function tryLogin() {
+    if(lockSecs()>0) { setLockLeft(lockSecs()); setPwErr(`Bloqueado ${lockSecs()}s.`); return; }
+    if(pw===PASS) { resetSec(); setAdmin(true); setLogin(false); setPw(""); setPwErr(""); }
+    else { const {attempts,lockedUntil}=failAttempt(); if(lockedUntil>Date.now()){const s=Math.ceil((lockedUntil-Date.now())/1000);setPwErr(`Bloqueado ${s}s.`);setLockLeft(s);}else{setPwErr(`Incorrecta. Intentos: ${MAX_INT-attempts}/${MAX_INT}`);} }
+  }
+
+  const wDates = weekDates(wOff);
+  const fRes   = rFilt==="all" ? resources : resources.filter(r=>r.id===rFilt);
+
+  // ── Estilos compartidos ───────────────────────────────────────────
+  const C = {
+    card: {backgroundColor:"white",borderRadius:16,padding:16,border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
+    btn:  (bg,fg,p="10px 16px")=>({padding:p,borderRadius:12,backgroundColor:bg,color:fg,border:"none",cursor:"pointer",fontWeight:600,fontSize:13}),
+    inp:  {width:"100%",border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",boxSizing:"border-box"},
+    tag:  (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
+  };
+
+  // ── SEMANA ────────────────────────────────────────────────────────
+  function WeekView() {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")} >← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151",fontSize:13,textAlign:"center"}}>
+            {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}
+          </span>
+          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        {fRes.map(r=>(
+          <div key={r.id} style={{marginBottom:24,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}>
+              <span style={{fontSize:20}}>{r.icon}</span>
+              <span style={{fontWeight:700,color:"white"}}>{r.name}</span>
+              <span style={{marginLeft:"auto",color:"white",fontSize:11,opacity:.85}}>{r.units} {r.units===1?"unidad":"unidades"}</span>
+            </div>
+            <div className="sx" style={{backgroundColor:"white"}}>
+              <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                <thead>
+                  <tr style={{backgroundColor:"#f9fafb"}}>
+                    <th style={{padding:"8px 6px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:44}}>Hora</th>
+                    {wDates.map((d,i)=>(
+                      <th key={i} style={{padding:"8px 4px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
+                        <div>{DAYS[i]}</div>
+                        <div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>
+                        {isBlocked(dKey(d))&&<div style={{color:"#fb923c",fontSize:10}}>🚫</div>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {HLABELS.map((hl,hi)=>{
+                    if(hl==="☕") return <tr key="rc" style={{backgroundColor:"#fffbeb"}}><td colSpan={6} style={{textAlign:"center",color:"#f59e0b",fontSize:11,padding:4,fontWeight:500}}>☕ Recreo</td></tr>;
+                    const h=HOURS[hi>4?hi-1:hi];
+                    return (
+                      <tr key={h} style={{borderTop:"1px solid #f3f4f6"}}>
+                        <td style={{padding:"4px 6px",color:"#9ca3af",fontFamily:"monospace"}}>{h}</td>
+                        {wDates.map((d,di)=>{
+                          const ds=dKey(d), blk=isBlocked(ds), u=used(r.id,ds,h), free=r.units-u, mine=myQty(r.id,ds,h)>0, sl=slot(r.id,ds,h);
+                          if(blk) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"4px 2px",backgroundColor:"#fff7ed",color:"#fdba74"}}>🚫</span></td>;
+                          return (
+                            <td key={di} style={{padding:4,textAlign:"center"}}>
+                              {mine
+                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:r.color,color:"white",fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}{r.units>1?` (${free}L)`:""}</button>
+                                : free===0
+                                  ? <div style={{borderRadius:8,padding:"4px 2px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sl.map(e=>e.area).join(", ")}</div>
+                                  : u>0
+                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} ${h}h`)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>{free} lib.</button>
+                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} ${h}h`)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:r.color+"22",color:r.color,fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
+                              }
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── RESUMEN ───────────────────────────────────────────────────────
+  function Overview() {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151",fontSize:13}}>{wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}</span>
+          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        <div style={{...C.card,padding:0,overflow:"hidden",marginBottom:20}}>
+          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>📋 Resumen semanal</span></div>
+          <div className="sx">
+            <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+              <thead><tr style={{backgroundColor:"#f9fafb"}}>
+                <th style={{padding:"8px 10px",textAlign:"left",color:"#9ca3af",fontWeight:500}}>Recurso</th>
+                {wDates.map((d,i)=><th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:65}}><div>{DAYS[i].slice(0,3)}</div><div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>{isBlocked(dKey(d))&&<div style={{color:"#fb923c"}}>🚫</div>}</th>)}
+              </tr></thead>
+              <tbody>{resources.map(r=>(
+                <tr key={r.id} style={{borderTop:"1px solid #f3f4f6"}}>
+                  <td style={{padding:"8px 10px",fontWeight:500,color:"#374151"}}><span style={{marginRight:4}}>{r.icon}</span>{r.name}</td>
+                  {wDates.map((d,di)=>{
+                    const ds=dKey(d);
+                    if(isBlocked(ds)) return <td key={di} style={{textAlign:"center",color:"#fdba74"}}>🚫</td>;
+                    const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length, pct=uS/HOURS.length;
+                    return <td key={di} style={{padding:6,textAlign:"center"}}>
+                      {uS===0?<span style={{color:"#22c55e",fontWeight:600}}>Libre</span>:uS===HOURS.length?<span style={{color:"#f87171",fontWeight:600}}>Lleno</span>:<div><div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:6,marginBottom:3}}><div style={{width:`${pct*100}%`,backgroundColor:r.color,borderRadius:999,height:6}}/></div><span style={{color:r.color,fontWeight:600}}>{HOURS.length-uS}lib.</span>{mS>0&&<span style={{backgroundColor:r.color,color:"white",fontSize:10,borderRadius:4,padding:"1px 4px",marginLeft:3}}>✓{mS}</span>}</div>}
+                    </td>;
+                  })}
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+        <div style={{...C.card,padding:0,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>⚡ Hoy — {new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</span></div>
+          <div style={{padding:12,display:"grid",gap:10}}>
+            {resources.map(r=>{
+              const td=dKey(new Date()), sl=HOURS.map(h=>({h,free:r.units-used(r.id,td,h),mine:myQty(r.id,td,h)>0})), tf=sl.filter(s=>s.free>0).length;
+              return <div key={r.id} style={{borderRadius:12,border:"1px solid #f3f4f6",overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",backgroundColor:r.color+"15"}}><span style={{fontSize:18}}>{r.icon}</span><span style={{fontWeight:600,color:"#374151",fontSize:13}}>{r.name}</span><span style={{marginLeft:"auto",color:r.color,fontWeight:600,fontSize:11}}>{tf}/{HOURS.length} libres</span></div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:8}}>
+                  {sl.map(s=><div key={s.h} style={{padding:"4px 8px",borderRadius:8,fontSize:11,fontWeight:500,backgroundColor:s.mine?r.color:s.free===0?"#fee2e2":"#f3f4f6",color:s.mine?"white":s.free===0?"#f87171":"#6b7280"}}>{s.h}{s.mine?" ✓":s.free===0?" ✗":""}</div>)}
+                </div>
+              </div>;
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── MES ───────────────────────────────────────────────────────────
+  function MonthView() {
+    const {days,year,month}=monthDays(mIdx);
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setMIdx(m=>Math.max(0,m-1))} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151"}}>{MONTHS[mIdx]} {month>=8?year:year+1}</span>
+          <button onClick={()=>setMIdx(m=>Math.min(9,m+1))} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        {fRes.map(r=>(
+          <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
+            <div style={{backgroundColor:"white",padding:12}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:4}}>{["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:11,color:"#9ca3af",fontWeight:500}}>{d}</div>)}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+                {days.map((d,i)=>{
+                  if(!d) return <div key={i}/>;
+                  const date=new Date(year,month,d), dow=date.getDay(), isWE=dow===0||dow===6;
+                  const ds=`${year}-${month}-${d}`, blk=isBlocked(ds);
+                  const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length;
+                  return <div key={i} style={{borderRadius:8,padding:4,textAlign:"center",fontSize:11,backgroundColor:isWE?"#f9fafb":blk?"#fff7ed":"white"}}>
+                    <div style={{fontWeight:500,color:isWE?"#d1d5db":"#374151"}}>{d}</div>
+                    {blk&&<div style={{fontSize:9,color:"#fb923c"}}>🚫</div>}
+                    {!isWE&&!blk&&mS>0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:r.color,color:"white",fontSize:9,padding:"1px 2px"}}>✓{mS}</div>}
+                    {!isWE&&!blk&&uS>0&&mS===0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:"#d1d5db",color:"white",fontSize:9,padding:"1px 2px"}}>{uS}h</div>}
+                  </div>;
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── CURSO ─────────────────────────────────────────────────────────
+  function CourseView() {
+    const y=sy();
+    return (
+      <div>
+        <h3 style={{fontWeight:700,color:"#374151",textAlign:"center",marginBottom:16}}>Curso {y}/{y+1}</h3>
+        {fRes.map(r=>{
+          const md=MONTHS.map((_,mi)=>{const mn=MNUMS[mi],yr=mn>=8?y:y+1,last=new Date(yr,mn+1,0).getDate();let t=0;for(let d=1;d<=last;d++)HOURS.forEach(h=>{if(used(r.id,`${yr}-${mn}-${d}`,h)>0)t++;});return t;});
+          const mx=Math.max(...md,1);
+          return <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
+            <div style={{backgroundColor:"white",padding:16}}>
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80}}>
+                {MONTHS.map((_,mi)=>{const h=Math.max(4,(md[mi]/mx)*72);return <div key={mi} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:"100%",borderRadius:"4px 4px 0 0",height:h,backgroundColor:md[mi]>0?r.color:"#e5e7eb"}}/><span style={{color:"#9ca3af",fontSize:8}}>{MONTHS[mi].slice(0,3)}</span></div>;})}</div>
+              <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
+                {md.map((v,mi)=>v>0&&<span key={mi} style={C.tag(r.color)}>{MONTHS[mi].slice(0,3)}: {v}</span>)}
+                {md.every(v=>v===0)&&<span style={{fontSize:12,color:"#9ca3af"}}>Sin reservas este curso</span>}
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>
+    );
+  }
+
+  // ── MIS RESERVAS ──────────────────────────────────────────────────
+  function Mine() {
+    if(!area) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Selecciona tu área</div>;
+    const mine=[];
+    Object.entries(res).forEach(([k,entries])=>{ const my=entries.find(e=>e.area===area); if(my){const[rid,ds,h]=k.split("||");mine.push({rid,ds,h,qty:my.qty,r:resources.find(x=>x.id===rid)});} });
+    mine.sort((a,b)=>a.ds.localeCompare(b.ds)||a.h.localeCompare(b.h));
+    if(!mine.length) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No tienes reservas activas</div>;
+    return <div style={{display:"grid",gap:8}}>
+      {mine.map(({rid,ds,h,qty,r})=>r&&<div key={rid+ds+h} style={{display:"flex",alignItems:"center",gap:12,...C.card,padding:12}}>
+        <div style={{width:40,height:40,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,backgroundColor:r.color+"22"}}>{r.icon}</div>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h{qty>1?` · ${qty} unidades`:""}</div></div>
+        <button onClick={()=>cancelRes(rid,ds,h)} style={C.btn("#fee2e2","#f87171","4px 10px")}>Cancelar</button>
+      </div>)}
+    </div>;
+  }
+
+  // ── ADMIN ─────────────────────────────────────────────────────────
+  function Admin() {
+    const allRes=Object.entries(res);
+    const stats={};
+    allRes.forEach(([k,entries])=>entries.forEach(e=>{ if(!stats[e.area])stats[e.area]={total:0,r:{}}; stats[e.area].total++; const[rid]=k.split("||"); stats[e.area].r[rid]=(stats[e.area].r[rid]||0)+1; }));
+    const sorted=Object.entries(stats).sort((a,b)=>b[1].total-a[1].total);
+
+    function startEdit(r){setEditId(r.id);setEditF({name:r.name,icon:r.icon,units:r.units,color:r.color});}
+    function saveEdit(id){
+      if(!editF.name.trim())return alert("El nombre no puede estar vacío.");
+      saveRsrc(resources.map(r=>r.id===id?{...r,...editF,units:parseInt(editF.units)||1}:r));
+      setEditId(null);
+    }
+    function delRes(id){
+      if(!window.confirm("¿Eliminar este recurso y todas sus reservas?"))return;
+      const n={...res}; Object.keys(n).forEach(k=>{if(k.startsWith(id+"||"))delete n[k];}); saveRes(n);
+      saveRsrc(resources.filter(r=>r.id!==id));
+    }
+
+    return <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <h2 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>🔐 Panel Administrador</h2>
+        <button onClick={()=>setAdmin(false)} style={C.btn("#fee2e2","#f87171")}>Salir</button>
+      </div>
+      <div style={{display:"flex",gap:4,marginBottom:20,overflowX:"auto"}}>
+        {[["res","🗑️ Reservas"],["blk","🚫 Días"],["rsrc","📦 Recursos"],["rpt","📊 Informe"]].map(([t,l])=>(
+          <button key={t} onClick={()=>setATab(t)} style={{flexShrink:0,fontSize:11,padding:"8px 12px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:aTab===t?"#1f2937":"#f3f4f6",color:aTab===t?"white":"#6b7280"}}>{l}</button>
+        ))}
+      </div>
+
+      {/* Reservas */}
+      {aTab==="res"&&<div>
+        <p style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{allRes.length} reservas en total</p>
+        {allRes.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No hay reservas</div>}
+        <div style={{display:"grid",gap:8}}>
+          {allRes.map(([k,entries])=>{ const[rid,ds,h]=k.split("||"),r=resources.find(x=>x.id===rid); if(!r)return null;
+            return <div key={k} style={{...C.card,padding:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <span style={{fontSize:18}}>{r.icon}</span>
+                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h</div></div>
+                <button onClick={()=>{const n={...res};delete n[k];saveRes(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Eliminar</button>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{entries.map(e=><span key={e.area} style={C.tag(r.color)}>{e.area}{e.qty>1?` x${e.qty}`:""}</span>)}</div>
+            </div>;
+          })}
+        </div>
+      </div>}
+
+      {/* Días bloqueados */}
+      {aTab==="blk"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Bloquear día</h4>
+          <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,marginBottom:8}}/>
+          <input type="text" value={bLabel} onChange={e=>setBLabel(e.target.value)} placeholder="Motivo (Festivo, Excursión...)" style={{...C.inp,marginBottom:12}}/>
+          <button onClick={()=>{if(!bDate)return alert("Selecciona fecha.");const d=new Date(bDate);saveBlk({...blocked,["b__"+dKey(d)]:bLabel||"Bloqueado"});setBDate("");setBLabel("");}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Bloquear</button>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {Object.entries(blocked).map(([k,label])=>{const ds=k.replace("b__","");return <div key={k} style={{...C.card,border:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:10,padding:12}}><span style={{fontSize:20}}>🚫</span><div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{ds}</div><div style={{fontSize:11,color:"#fb923c"}}>{label}</div></div><button onClick={()=>{const n={...blocked};delete n[k];saveBlk(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Quitar</button></div>;})}
+          {Object.keys(blocked).length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:24}}>No hay días bloqueados</div>}
+        </div>
+      </div>}
+
+      {/* Recursos */}
+      {aTab==="rsrc"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir recurso</h4>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <select value={newR.icon} onChange={e=>setNewR({...newR,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:8,fontSize:20,width:52}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+            <input value={newR.name} onChange={e=>setNewR({...newR,name:e.target.value})} placeholder="Nombre" style={{...C.inp}}/>
+          </div>
+          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={newR.units} onChange={e=>setNewR({...newR,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setNewR({...newR,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:newR.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+          </div>
+          <button onClick={()=>{if(!newR.name.trim())return alert("Indica el nombre.");const id=newR.name.toLowerCase().replace(/\s+/g,"_")+"_"+Date.now();saveRsrc([...resources,{...newR,id,units:parseInt(newR.units)||1}]);setNewR({name:"",icon:"📦",units:1,color:COLORS[0]});}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Añadir</button>
+        </div>
+        <div style={{display:"grid",gap:10}}>
+          {resources.map(r=><div key={r.id} style={{...C.card,padding:12}}>
+            {editId===r.id
+              ? <div>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <select value={editF.icon} onChange={e=>setEditF({...editF,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:6,fontSize:20,width:48}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+                    <input value={editF.name} onChange={e=>setEditF({...editF,name:e.target.value})} style={{...C.inp}}/>
+                  </div>
+                  <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={editF.units} onChange={e=>setEditF({...editF,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setEditF({...editF,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:editF.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setEditId(null)} style={{...C.btn("#f3f4f6","#6b7280"),flex:1}}>Cancelar</button>
+                    <button onClick={()=>saveEdit(r.id)} style={{...C.btn("#1f2937","white"),flex:1}}>Guardar</button>
+                  </div>
+                </div>
+              : <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:44,height:44,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,backgroundColor:r.color+"22"}}>{r.icon}</div>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{r.units} {r.units===1?"unidad":"unidades"}</div></div>
+                  <button onClick={()=>startEdit(r)} style={C.btn("#eff6ff","#3b82f6","6px 12px")}>✏️</button>
+                  <button onClick={()=>delRes(r.id)} style={C.btn("#fee2e2","#f87171","6px 12px")}>🗑️</button>
+                </div>
+            }
+          </div>)}
+        </div>
+      </div>}
+
+      {/* Informe */}
+      {aTab==="rpt"&&<div>
+        <h4 style={{fontWeight:600,color:"#374151",marginBottom:12,fontSize:13}}>Reservas por área</h4>
+        {sorted.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Sin datos</div>}
+        <div style={{display:"grid",gap:10}}>
+          {sorted.map(([a,st])=>{const mx=sorted[0][1].total;return <div key={a} style={{...C.card,padding:12}}>
+            <div style={{display:"flex",alignItems:"center",marginBottom:6}}><span style={{fontWeight:600,fontSize:13,color:"#374151"}}>{a}</span><span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:"#6b7280"}}>{st.total} reserva{st.total!==1?"s":""}</span></div>
+            <div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:8,marginBottom:8}}><div style={{width:`${(st.total/mx)*100}%`,backgroundColor:"#3b82f6",borderRadius:999,height:8}}/></div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{Object.entries(st.r).map(([rid,cnt])=>{const r=resources.find(x=>x.id===rid);if(!r)return null;return <span key={rid} style={C.tag(r.color)}>{r.icon} {r.name}: {cnt}</span>;})}</div>
+          </div>;})}
+        </div>
+      </div>}
+    </div>;
+  }
+
+  // ── RENDER ────────────────────────────────────────────────────────
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)"}}>
+
+      {/* Modal login admin */}
+      {loginOpen&&<div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+        <div style={{backgroundColor:"white",borderRadius:20,padding:28,width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:44,marginBottom:8}}>🔐</div>
+            <h3 style={{fontWeight:700,color:"#1f2937",fontSize:16,margin:0}}>Panel Administrador</h3>
+            <p style={{fontSize:12,color:"#9ca3af",margin:"4px 0 0"}}>CEIP San José Obrero</p>
+          </div>
+          {lockLeft>0&&<div style={{backgroundColor:"#fef3c7",border:"1px solid #fde68a",borderRadius:10,padding:"10px 12px",marginBottom:12,textAlign:"center"}}><div style={{fontSize:20,marginBottom:4}}>⏳</div><div style={{fontSize:13,fontWeight:600,color:"#92400e"}}>Bloqueado {lockLeft}s</div></div>}
+          <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setPwErr("");}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Contraseña" disabled={lockLeft>0}
+            style={{...C.inp,marginBottom:6,border:`1px solid ${pwErr?"#f87171":"#e5e7eb"}`,opacity:lockLeft>0?.5:1}}/>
+          {pwErr&&<p style={{fontSize:12,color:"#f87171",margin:"0 0 8px",textAlign:"center"}}>{pwErr}</p>}
+          {!lockLeft&&<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12}}>
+            {Array.from({length:MAX_INT}).map((_,i)=><div key={i} style={{width:8,height:8,borderRadius:"50%",backgroundColor:i<(getSec().attempts||0)?"#f87171":"#e5e7eb"}}/>)}
+          </div>}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setLogin(false);setPw("");setPwErr("");}} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+            <button onClick={tryLogin} disabled={lockLeft>0} style={{...C.btn("#1f2937","white"),flex:1,opacity:lockLeft>0?.5:1}}>Entrar</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Modal reserva */}
+      {modal&&(()=>{
+        const r=resources.find(x=>x.id===modal.rid), u=used(modal.rid,modal.ds,modal.h), free=r.units-u, sl=slot(modal.rid,modal.ds,modal.h);
+        return <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+          <div style={{backgroundColor:"white",borderRadius:20,padding:24,width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:48,height:48,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,backgroundColor:r.color+"22"}}>{r.icon}</div>
+              <div><h3 style={{fontWeight:700,color:"#1f2937",margin:0,fontSize:15}}>{r.name}</h3><p style={{fontSize:12,color:"#9ca3af",margin:"2px 0 0"}}>{modal.label}</p></div>
+            </div>
+            <div style={{backgroundColor:"#f9fafb",borderRadius:12,padding:12,marginBottom:16,fontSize:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563",marginBottom:4}}><span>Disponibles:</span><span style={{fontWeight:700,color:r.color}}>{free} de {r.units}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563"}}><span>Tu área:</span><span style={{fontWeight:600}}>{area}</span></div>
+              {sl.length>0&&<div style={{fontSize:11,color:"#9ca3af",paddingTop:8,borderTop:"1px solid #e5e7eb",marginTop:8}}>Ya: {sl.map(e=>`${e.area}${e.qty>1?` x${e.qty}`:""}`).join(", ")}</div>}
+            </div>
+            {r.units>1&&<div style={{marginBottom:16}}>
+              <label style={{fontSize:13,color:"#4b5563",display:"block",marginBottom:8}}>¿Cuántas unidades?</label>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <button onClick={()=>setQty(q=>Math.max(1,q-1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>−</button>
+                <span style={{fontWeight:700,fontSize:24,color:"#374151",width:36,textAlign:"center"}}>{qty}</span>
+                <button onClick={()=>setQty(q=>Math.min(free,q+1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>+</button>
+              </div>
+            </div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+              <button onClick={makeRes} style={{...C.btn(r.color,"white"),flex:1}}>Reservar</button>
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {/* Header */}
+      <div style={{backgroundColor:"white",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",position:"sticky",top:0,zIndex:10}}>
+        <div style={{maxWidth:900,margin:"0 auto",padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <span style={{fontSize:26}}>🏫</span>
+            <div style={{flex:1}}>
+              <h1 style={{fontWeight:700,color:"#1f2937",fontSize:14,margin:0,lineHeight:1.2}}>CEIP San José Obrero</h1>
+              <p style={{fontSize:11,color:"#9ca3af",margin:0}}>Cuevas del Becerro · Reserva de espacios y dispositivos</p>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              {/* Indicador Firebase */}
+              <span title={db?"Firebase conectado":"Sin conexión en tiempo real"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
+              {!admin&&<select value={area} onChange={e=>setArea(e.target.value)} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
+                <option value="">👤 Tu área</option>
+                {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+              </select>}
+              <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:11,padding:"6px 12px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
+                {admin?"🔓 Salir":"🔐 Admin"}
+              </button>
+            </div>
+          </div>
+          {!admin&&<div style={{display:"flex",gap:4}}>
+            {[["week","📅 Semana"],["overview","📋 Resumen"],["month","🗓️ Mes"],["course","📊 Curso"],["mine","⭐ Mis reservas"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{flex:1,fontSize:11,padding:"7px 2px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"transparent",color:view===v?"white":"#6b7280"}}>{l}</button>
+            ))}
+          </div>}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
+        {!admin&&view!=="mine"&&view!=="overview"&&<div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+          <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:11,padding:"6px 12px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 2px rgba(0,0,0,0.05)"}}>Todos</button>
+          {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:11,padding:"6px 12px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 2px rgba(0,0,0,0.05)"}}>{r.icon} {r.name}</button>)}
+        </div>}
+
+        {admin ? <Admin/> : <>
+          {view==="week"     && <WeekView/>}
+          {view==="overview" && <Overview/>}
+          {view==="month"    && <MonthView/>}
+          {view==="course"   && <CourseView/>}
+          {view==="mine"     && <div><h2 style={{fontWeight:700,color:"#374151",marginBottom:16}}>⭐ Mis Reservas {area?`— ${area}`:""}</h2><Mine/></div>}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+</body>
+</html>
