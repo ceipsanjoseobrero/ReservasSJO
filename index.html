@@ -9,21 +9,27 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
-window._fbDb = null;
+var _fbApp;
 try {
-  var _fbApp = firebase.initializeApp({
-    apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
-    authDomain: "ceip-sjo-reservas.firebaseapp.com",
-    databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "ceip-sjo-reservas",
-    storageBucket: "ceip-sjo-reservas.firebasestorage.app",
-    messagingSenderId: "448340997755",
-    appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
-  });
+  if (!firebase.apps.length) {
+    _fbApp = firebase.initializeApp({
+      apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
+      authDomain: "ceip-sjo-reservas.firebaseapp.com",
+      databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "ceip-sjo-reservas",
+      storageBucket: "ceip-sjo-reservas.firebasestorage.app",
+      messagingSenderId: "448340997755",
+      appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
+    });
+  } else {
+    _fbApp = firebase.app();
+  }
+
   window._fbDb = firebase.database(_fbApp);
   console.log("✅ Firebase OK");
 } catch(e) {
   console.error("❌ Firebase error:", e.message);
+   
 }
 </script>
 
