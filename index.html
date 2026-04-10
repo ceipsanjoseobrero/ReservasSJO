@@ -31,6 +31,31 @@ try {
   console.error("❌ Firebase error:", e.message);
    
 }
+  // --- NUEVA LÓGICA DE SEGURIDAD ---
+
+// 1. Función para validar acceso con contraseña desde Firebase
+window.verificarAcceso = function(areaDestino) {
+window._fbDb.ref('passwordMaestros').once('value').then((snapshot) => {
+const passCorrecta = snapshot.val() || "1234"; // "1234" por defecto si no hay nada en FB
+const passUsuario = prompt("Introduce la contraseña de maestros para acceder a " + areaDestino + ":");
+
+if (passUsuario === passCorrecta) {
+alert("Acceso concedido");
+// Aquí el código original para mostrar la sección, ej:
+ setArea(areaDestino);
+} else {
+alert("Contraseña incorrecta");
+}
+});
+};
+
+// 2. Función para el Admin
+window.actualizarPassword = function(nuevaPass) {
+if(!nuevaPass) return alert("Escribe una contraseña");
+window._fbDb.ref('passwordMaestros').set(nuevaPass)
+.then(() => alert("Contraseña actualizada globalmente"))
+.catch((e) => alert("Error: " + e.message));
+};
 </script>
 
 <!-- React y Babel -->
