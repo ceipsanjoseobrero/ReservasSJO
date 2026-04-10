@@ -35,26 +35,24 @@ try {
 
 // 1. Función para validar acceso con contraseña desde Firebase
 window.verificarAcceso = function(areaDestino) {
-if (!areaDestino) return;
-if (window.accesoAutorizado === areaDestino) return;
+if (!areaDestino || areaDestino === "" || window.ultimoAcceso === areaDestino) return;
 
 window._fbDb.ref('passwordMaestros').once('value').then((snapshot) => {
-
 const passCorrecta = snapshot.val() || "3trimestre";
-const passUsuario = prompt("Introduce la contraseña de maestros:");
+const passUsuario = prompt("Clave maestros:");
 
 if (passUsuario === passCorrecta) {
-// Guardamos que ya estamos autorizados para que no vuelva a pedirla
-window.accesoAutorizado = areaDestino;
-// Cambiamos el área para mostrar el calendario
+window.ultimoAcceso = areaDestino;
 setArea(areaDestino);
-// No ponemos alert para que la entrada sea fluida y sin bucles
 } else {
-alert("Contraseña incorrecta");
-setArea(""); // Si falla, vuelve a "Tu área"
+if (passUsuario !== null) alert("Incorrecta");
+window.ultimoAcceso = null;
+setArea("");
+const el = document.getElementById("selectorArea");
+if (el) el.value = "";
 }
-});
-};
+}).catch(e => console.error("FB_ERR:", e));
+}
 
 
 // 2. Función para el Admin
