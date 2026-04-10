@@ -1,384 +1,681 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Sistema de Reservas - CEIP San José Obrero</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
-        .glass-morphism { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        select, input { font-size: 16px !important; } /* Evita zoom automático en iOS */
-    </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CEIP San José Obrero — Reservas</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
+        authDomain: "ceip-sjo-reservas.firebaseapp.com",
+        databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "ceip-sjo-reservas",
+        storageBucket: "ceip-sjo-reservas.firebasestorage.app",
+        messagingSenderId: "448340997755",
+        appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
+      });
+    }
+    window._fbDb = firebase.database();
+    console.log("✅ Firebase OK");
+  } catch(e) {
+    console.error("❌ Firebase error:", e.message);
+  }
+</script>
+
+<!-- React y Babel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<style>
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff);min-height:100vh;}
+.sx{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+button,select,input{-webkit-appearance:none;font-family:inherit;}
+.recreo { 
+  background-color: #fffbeb !important; 
+  color: #d97706 !important; 
+  font-weight: 700;
+  font-size: 13px;
+}
+.header-title { font-size: 22px; font-weight: 700; color: #1f2937; margin: 0; }
+.header-subtitle { font-size: 13px; color: #6b7280; font-weight: 600; margin: 2px 0 0 0; }
+</style>
 </head>
-<body class="bg-[#f8fafc] text-slate-900">
-    <div id="root"></div>
+<body>
+<div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useCallback } = React;
+<script type="text/babel">
+const {useState, useEffect} = React;
+const db = window._fbDb;
 
-        // --- COMPONENTE DE ICONOS ---
-        const LucideIcon = ({ name, size = 20, className = "" }) => {
-            const IconComponent = lucide.icons[name];
-            return IconComponent ? <IconComponent size={size} className={className} /> : null;
-        };
+// ── Constantes ─────────────────────────────────────────────────────
+const PASS = "biblioflix2024";
+const MAX_INT = 5, LOCK_MS = 60000;
 
-        // --- CONSTANTES Y DATOS INICIALES ---
-        const PERFILES = [
-            "INF 3", "INF 4", "INF 5", 
-            "1º Primaria", "2º Primaria", "3º Primaria", 
-            "4º Primaria", "5º Primaria", "6º Primaria", 
-            "1º ESO", "2º ESO", "Música", "EF", "Religión", "Dirección"
-        ];
+const RES0 = [
+  {id:"informatica", name:"Aula de Informática", icon:"🖥️", units:1, color:"#6366f1"},
+  {id:"proyector", name:"Proyector Móvil", icon:"📽️", units:1, color:"#f59e0b"},
+  {id:"tablets", name:"Tablets / iPads", icon:"📱", units:15, color:"#10b981"},
+  {id:"biblioteca", name:"Biblioteca", icon:"📚", units:1, color:"#8b5cf6"},
+  {id:"portatiles", name:"Portátiles", icon:"💻", units:20, color:"#3b82f6"},
+  {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"},
+];
 
-        const App = () => {
-            // --- ESTADO PRINCIPAL ---
-            const [view, setView] = useState('user'); // 'user' | 'admin'
-            const [reservas, setReservas] = useState([]);
-            const [items, setItems] = useState([
-                { id: '1', nombre: 'Biblioteca', tipo: 'espacio', cantidadMax: 1, icono: 'DoorOpen' },
-                { id: '2', nombre: 'Aula Matinal', tipo: 'espacio', cantidadMax: 1, icono: 'DoorOpen' },
-                { id: '3', nombre: 'Sala de Profesores', tipo: 'espacio', cantidadMax: 1, icono: 'Users' },
-                { id: '4', nombre: 'Otras Salas', tipo: 'espacio', cantidadMax: 1, icono: 'DoorOpen' },
-                { id: '5', nombre: 'Portátiles HP Primaria', tipo: 'recurso', cantidadMax: 25, icono: 'Laptop' },
-                { id: '6', nombre: 'Portátiles Táctiles Primaria', tipo: 'recurso', cantidadMax: 15, icono: 'Laptop' },
-                { id: '7', nombre: 'Otros Portátiles', tipo: 'recurso', cantidadMax: 10, icono: 'Laptop' }
-            ]);
+// HORARIO EN TRAMOS CLAROS
+const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
+const HLABELS = ["8:00-9:00","9:00-10:00","10:00-11:00","11:00-11:30","11:30-12:30","12:30-13:30","13:30-14:30"];
 
-            // --- LÓGICA DE CERRAR SESIÓN ---
-            const handleLogout = () => {
-                if(window.confirm("¿Seguro que deseas salir del sistema de gestión de Cuevas del Becerro?")) {
-                    window.location.reload();
-                }
-            };
+const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
+const MONTHS = ["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio"];
+const MNUMS = [8,9,10,11,0,1,2,3,4,5];
+const COLORS = ["#6366f1","#f59e0b","#10b981","#8b5cf6","#3b82f6","#ec4899","#ef4444","#14b8a6","#f97316","#84cc16"];
+const ICONS = ["🖥️","📽️","📱","📚","💻","🌅","🎨","🔬","🎵","🏃","📐","📦"];
 
-            // --- COMPONENTE CABECERA ---
-            const Header = () => (
-                <header className="bg-blue-700 text-white shadow-lg sticky top-0 z-50">
-                    <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-                        <div className="flex flex-col">
-                            <h1 className="text-base md:text-xl font-bold tracking-tight">CEIP San José Obrero</h1>
-                            <p className="text-[9px] md:text-xs opacity-80 uppercase tracking-widest font-medium">Cuevas del Becerro</p>
-                        </div>
-                        
-                        <div className="flex items-center gap-1 md:gap-4">
-                            <button 
-                                onClick={() => setView(view === 'user' ? 'admin' : 'user')}
-                                className="flex items-center gap-2 p-2 hover:bg-blue-800 rounded-xl transition-all"
-                                title={view === 'user' ? "Administración" : "Volver a Reservas"}
-                            >
-                                <LucideIcon name={view === 'user' ? "Settings" : "User"} size={20} />
-                                <span className="hidden md:block text-sm font-semibold">
-                                    {view === 'user' ? "Admin" : "Profesorado"}
-                                </span>
-                            </button>
+// ── Helpers fecha ──────────────────────────────────────────────────
+function sy() { const n=new Date(); return n.getMonth()>=8?n.getFullYear():n.getFullYear()-1; }
+function dKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function rKey(rid,ds,h) { return `${rid}||${ds}||${h}`; }
+function weekDates(off) {
+  const now=new Date(), day=now.getDay(), diff=day===0?-6:1-day, mon=new Date(now);
+  mon.setDate(now.getDate()+diff+off*7);
+  return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+function monthDays(mi) {
+  const mn=MNUMS[mi], y=mn>=8?sy():sy()+1;
+  const first=new Date(y,mn,1), last=new Date(y,mn+1,0), days=[];
+  let dow=first.getDay(); dow=dow===0?6:dow-1;
+  for(let i=0;i<dow;i++) days.push(null);
+  for(let d=1;d<=last.getDate();d++) days.push(d);
+  return {days,year:y,month:mn};
+}
 
-                            <div className="w-[1px] h-6 bg-blue-600 mx-1 hidden sm:block"></div>
+// ── Seguridad ──────────────────────────────────────────────────────
+function getSec() { try{return JSON.parse(sessionStorage.getItem("_sec")||"{}");} catch{return{};} }
+function setSec(s) { try{sessionStorage.setItem("_sec",JSON.stringify(s));}catch{} }
+function failAttempt() {
+  const s=getSec(), a=(s.attempts||0)+1, lock=a>=MAX_INT?Date.now()+LOCK_MS:(s.lockedUntil||0);
+  setSec({attempts:a,lockedUntil:lock}); return {attempts:a,lockedUntil:lock};
+}
+function resetSec() { setSec({attempts:0,lockedUntil:0}); }
+function lockSecs() { return Math.max(0,Math.ceil(((getSec().lockedUntil||0)-Date.now())/1000)); }
 
-                            <button 
-                                onClick={handleLogout}
-                                className="flex items-center gap-2 bg-red-500 hover:bg-red-600 px-3 py-2 rounded-xl transition-all shadow-md active:scale-95 ml-1"
-                            >
-                                <LucideIcon name="LogOut" size={18} />
-                                <span className="hidden xs:block text-xs font-bold uppercase tracking-tighter">Salir</span>
-                            </button>
-                        </div>
-                    </div>
-                </header>
-            );
+// ── APP ────────────────────────────────────────────────────────────
+function App() {
+  const [view, setView] = useState("week");
+  const [area, setArea] = useState("");
+  const [res, setRes] = useState({});
+  const [blocked, setBlocked] = useState({});
+  const [resources, setResources] = useState(RES0);
+  const [areas, setAreas] = useState(["Infantil 3","Infantil 4","Infantil 5","1º Primaria","2º Primaria","3º Primaria","4º Primaria","5º Primaria","6º Primaria","1º ESO","2º ESO","Inglés","Ed. Física","Música","Francés","Religión","PT","AL"]);
+  const [wOff, setWOff] = useState(0);
+  const [mIdx, setMIdx] = useState(()=>{ const i=MNUMS.indexOf(new Date().getMonth()); return i>=0?i:0; });
+  const [modal, setModal] = useState(null);
+  const [qty, setQty] = useState(1);
+  const [rFilt, setRFilt] = useState("all");
+  const [admin, setAdmin] = useState(false);
+  const [aTab, setATab] = useState("res");
+  const [loginOpen, setLogin] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [lockLeft, setLockLeft] = useState(0);
+  const [newR, setNewR] = useState({name:"",icon:"📦",units:1,color:COLORS[0]});
+  const [newAreaName, setNewAreaName] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editF, setEditF] = useState({});
+  const [bDate, setBDate] = useState("");
+  const [bLabel, setBLabel] = useState("");
+  const [masterPass, setMasterPass] = useState("3trimestre");
 
-            // --- VISTA DE ADMINISTRADOR ---
-            const AdminPanel = () => {
-                const [newItem, setNewItem] = useState({ nombre: '', tipo: 'espacio', cantidadMax: 1 });
+  // Firebase listeners
+  useEffect(()=>{
+    if(db) {
+      db.ref("sjo/res").on("value", s=>setRes(s.val()||{}));
+      db.ref("sjo/blocked").on("value", s=>setBlocked(s.val()||{}));
+      db.ref("sjo/resources").on("value",s=>{ if(s.val()) setResources(s.val()); });
+      db.ref("sjo/areas").on("value", s=>{ if(s.val()) setAreas(s.val()); });
+      db.ref("passwordMaestros").on("value", s=>setMasterPass(s.val() || "3trimestre"));
+    }
+  },[]);
 
-                const handleAddItem = (e) => {
-                    e.preventDefault();
-                    if (!newItem.nombre) return;
-                    setItems([...items, { ...newItem, id: Date.now().toString(), icono: newItem.tipo === 'espacio' ? 'DoorOpen' : 'Laptop' }]);
-                    setNewItem({ nombre: '', tipo: 'espacio', cantidadMax: 1 });
-                };
+  useEffect(()=>{
+    if(!lockLeft) return;
+    const t=setInterval(()=>{ const s=lockSecs(); setLockLeft(s); if(!s) clearInterval(t); },1000);
+    return ()=>clearInterval(t);
+  },[lockLeft]);
 
-                const deleteItem = (id) => {
-                    if(confirm("¿Eliminar este recurso permanentemente?")) {
-                        setItems(items.filter(i => i.id !== id));
-                        setReservas(reservas.filter(r => r.itemId !== id));
-                    }
-                };
+  function saveRes(v)  { setRes(v); if(db) db.ref("sjo/res").set(v); else try{localStorage.setItem("sjo_res",JSON.stringify(v));}catch{} }
+  function saveBlk(v)  { setBlocked(v); if(db) db.ref("sjo/blocked").set(v); else try{localStorage.setItem("sjo_blocked",JSON.stringify(v));}catch{} }
+  function saveRsrc(v) { setResources(v); if(db) db.ref("sjo/resources").set(v); else try{localStorage.setItem("sjo_rsrc",JSON.stringify(v));}catch{} }
+  function saveAreas(v) { setAreas(v); if(db) db.ref("sjo/areas").set(v); }
 
-                return (
-                    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                    <LucideIcon name="ShieldCheck" className="text-red-600" />
-                                    Gestión de Inventario y Recursos
-                                </h2>
-                            </div>
-                            
-                            <div className="p-6">
-                                <form onSubmit={handleAddItem} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
-                                    <div className="md:col-span-2">
-                                        <label className="block text-xs font-bold text-blue-700 mb-1 ml-1">NOMBRE DEL ELEMENTO</label>
-                                        <input 
-                                            type="text" required
-                                            className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none focus:ring-2 ring-blue-500"
-                                            placeholder="Ej: Aula de Informática..."
-                                            value={newItem.nombre}
-                                            onChange={e => setNewItem({...newItem, nombre: e.target.value})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-blue-700 mb-1 ml-1">CATEGORÍA</label>
-                                        <select 
-                                            className="w-full p-3 bg-white border border-blue-200 rounded-xl outline-none"
-                                            value={newItem.tipo}
-                                            onChange={e => setNewItem({...newItem, tipo: e.target.value})}
-                                        >
-                                            <option value="espacio">Espacio</option>
-                                            <option value="recurso">Recurso</option>
-                                        </select>
-                                    </div>
-                                    <div className="flex items-end">
-                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all flex justify-center items-center gap-2 shadow-lg shadow-blue-200">
-                                            <LucideIcon name="Plus" size={20} /> AÑADIR
-                                        </button>
-                                    </div>
-                                </form>
+  function slot(rid,ds,h)   { return res[rKey(rid,ds,h)]||[]; }
+  function used(rid,ds,h)   { return slot(rid,ds,h).reduce((a,b)=>a+b.qty,0); }
+  function myQty(rid,ds,h)  { return (slot(rid,ds,h).find(e=>e.area===area)||{}).qty||0; }
+  function isBlocked(ds)    { return !!blocked["b__"+ds]; }
 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead>
-                                            <tr className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.1em]">
-                                                <th className="px-4 pb-4">Elemento</th>
-                                                <th className="px-4 pb-4">Tipo</th>
-                                                <th className="px-4 pb-4">Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="text-slate-700 divide-y divide-slate-100">
-                                            {items.map(item => (
-                                                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="p-4 font-semibold">{item.nombre}</td>
-                                                    <td className="p-4 uppercase text-[10px]">
-                                                        <span className={`px-3 py-1 rounded-full font-bold ${item.tipo === 'espacio' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                            {item.tipo}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <button onClick={() => deleteItem(item.id)} className="text-slate-300 hover:text-red-500 p-2">
-                                                            <LucideIcon name="Trash2" size={18} />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            };
+  // Selector de área con contraseña
+  const handleAreaChange = (e) => {
+    const newArea = e.target.value;
+    if(!newArea || newArea === area) return;
+    const passUsuario = prompt(`🔑 Clave de maestros para:\n${newArea}`);
+    if(passUsuario === null) { e.target.value = area || ""; return; }
+    if(passUsuario === masterPass) {
+      setArea(newArea);
+    } else {
+      alert("❌ Clave incorrecta");
+      e.target.value = area || "";
+    }
+  };
 
-            // --- VISTA DE USUARIO (PROFESORADO) ---
-            const UserPanel = () => {
-                const [form, setForm] = useState({
-                    perfil: PERFILES[0],
-                    itemId: items[0].id,
-                    fecha: new Date().toISOString().split('T')[0],
-                    cantidad: 1
-                });
+  function openModal(rid,ds,h,label) {
+    if(!area) return alert("Selecciona tu área primero.");
+    if(isBlocked(ds)) return alert("Día bloqueado: "+(blocked["b__"+ds]||""));
+    setModal({rid,ds,h,label}); setQty(1);
+  }
 
-                const handleSubmit = (e) => {
-                    e.preventDefault();
-                    const itemSeleccionado = items.find(i => i.id === form.itemId);
-                    
-                    const nuevaReserva = {
-                        ...form,
-                        id: Date.now(),
-                        nombreItem: itemSeleccionado.nombre,
-                        tipo: itemSeleccionado.tipo,
-                        icono: itemSeleccionado.icono
-                    };
+  function makeRes() {
+    const {rid,ds,h}=modal, r=resources.find(x=>x.id===rid);
+    const u=used(rid,ds,h);
+    if(u+qty>r.units) return alert(`Solo quedan ${r.units-u} unidades.`);
+    const k=rKey(rid,ds,h), ex=res[k]||[], idx=ex.findIndex(e=>e.area===area);
+    const up = idx>=0 ? ex.map((e,i)=>i===idx?{...e,qty:e.qty+qty}:e) : [...ex,{area,qty}];
+    saveRes({...res,[k]:up}); setModal(null);
+  }
 
-                    setReservas([nuevaReserva, ...reservas]);
-                    alert(`Reserva de "${itemSeleccionado.nombre}" confirmada.`);
-                };
+  function cancelRes(rid,ds,h) {
+    const k=rKey(rid,ds,h), up=(res[k]||[]).filter(e=>e.area!==area);
+    const n={...res}; up.length?(n[k]=up):delete n[k]; saveRes(n);
+  }
 
-                return (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                        {/* SECCIÓN FORMULARIO */}
-                        <div className="lg:col-span-4 space-y-6">
-                            <section className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200">
-                                <h2 className="text-xl font-bold text-slate-800 mb-8 flex items-center gap-3">
-                                    <div className="bg-green-100 p-2 rounded-lg text-green-600">
-                                        <LucideIcon name="PlusCircle" size={24} />
-                                    </div>
-                                    Nueva Reserva
-                                </h2>
+  function tryLogin() {
+    if(lockSecs()>0) { setLockLeft(lockSecs()); setPwErr(`Bloqueado ${lockSecs()}s.`); return; }
+    if(pw===PASS) { resetSec(); setAdmin(true); setLogin(false); setPw(""); setPwErr(""); }
+    else { const {attempts,lockedUntil}=failAttempt(); if(lockedUntil>Date.now()){const s=Math.ceil((lockedUntil-Date.now())/1000);setPwErr(`Bloqueado ${s}s.`);setLockLeft(s);}else{setPwErr(`Incorrecta. Intentos: ${MAX_INT-attempts}/${MAX_INT}`);} }
+  }
 
-                                <form onSubmit={handleSubmit} className="space-y-5">
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Solicitante</label>
-                                        <select 
-                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 ring-blue-500/10 focus:bg-white transition-all font-medium"
-                                            value={form.perfil}
-                                            onChange={e => setForm({...form, perfil: e.target.value})}
-                                        >
-                                            {PERFILES.map(p => <option key={p} value={p}>{p}</option>)}
-                                        </select>
-                                    </div>
+  const wDates = weekDates(wOff);
+  const fRes = rFilt==="all" ? resources : resources.filter(r=>r.id===rFilt);
 
-                                    <div>
-                                        <label className="block text-[11px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Recurso o Espacio</label>
-                                        <select 
-                                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 ring-blue-500/10 focus:bg-white transition-all font-medium"
-                                            value={form.itemId}
-                                            onChange={e => setForm({...form, itemId: e.target.value})}
-                                        >
-                                            {items.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-                                        </select>
-                                    </div>
+  const C = {
+    card: {backgroundColor:"white",borderRadius:16,padding:16,border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
+    btn: (bg,fg,p="10px 16px")=>({padding:p,borderRadius:12,backgroundColor:bg,color:fg,border:"none",cursor:"pointer",fontWeight:600,fontSize:13}),
+    inp: {width:"100%",border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",boxSizing:"border-box"},
+    tag: (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
+  };
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Fecha</label>
-                                            <input 
-                                                type="date" required
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 ring-blue-500/10 focus:bg-white transition-all"
-                                                value={form.fecha}
-                                                onChange={e => setForm({...form, fecha: e.target.value})}
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[11px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Cantidad</label>
-                                            <input 
-                                                type="number" min="1" max="50"
-                                                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 ring-blue-500/10 focus:bg-white transition-all"
-                                                value={form.cantidad}
-                                                onChange={e => setForm({...form, cantidad: e.target.value})}
-                                            />
-                                        </div>
-                                    </div>
+  // ── SEMANA con recreo especial ─────────────────────────────────────
+  function WeekView() {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151",fontSize:13,textAlign:"center"}}>
+            {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}
+          </span>
+          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        {fRes.map(r=>(
+          <div key={r.id} style={{marginBottom:24,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}>
+              <span style={{fontSize:20}}>{r.icon}</span>
+              <span style={{fontWeight:700,color:"white"}}>{r.name}</span>
+              <span style={{marginLeft:"auto",color:"white",fontSize:11,opacity:.85}}>{r.units} {r.units===1?"unidad":"unidades"}</span>
+            </div>
+            <div className="sx" style={{backgroundColor:"white"}}>
+              <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+                <thead>
+                  <tr style={{backgroundColor:"#f9fafb"}}>
+                    <th style={{padding:"8px 12px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:110}}>Tramo Horario</th>
+                    {wDates.map((d,i)=>(
+                      <th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
+                        <div>{DAYS[i]}</div>
+                        <div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>
+                        {isBlocked(dKey(d))&&<div style={{color:"#fb923c",fontSize:10}}>🚫</div>}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {HLABELS.map((hl,hi)=>{
+                    const h = HOURS[hi];
+                    const isRecreo = hl === "11:00-11:30";
+                    return (
+                      <tr key={h} style={{borderTop:"1px solid #f3f4f6", backgroundColor: isRecreo ? "#fffbeb" : "transparent"}}>
+                        <td style={{padding:"10px 12px",color: isRecreo ? "#d97706" : "#374151",fontWeight: isRecreo ? 700 : 600, fontSize: isRecreo ? "13px" : "12px"}}>
+                          {isRecreo ? "☕ RECREO" : hl}
+                        </td>
+                        {wDates.map((d,di)=>{
+                          const ds=dKey(d), blk=isBlocked(ds), u=used(r.id,ds,h), free=r.units-u, mine=myQty(r.id,ds,h)>0, sl=slot(r.id,ds,h);
+                          if(blk || isRecreo) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"8px 6px",backgroundColor:"#fef3c7",color:"#d97706",fontSize:12}}>☕ Recreo</span></td>;
+                          return (
+                            <td key={di} style={{padding:4,textAlign:"center"}}>
+                              {mine
+                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color,color:"white",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}</button>
+                                : free===0
+                                  ? <div style={{borderRadius:8,padding:"8px 6px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:11}}>{sl.map(e=>e.area).join(", ")}</div>
+                                  : u>0
+                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>{free} libres</button>
+                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color+"22",color:r.color,fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
+                              }
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-                                    <button 
-                                        type="submit"
-                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-5 rounded-2xl shadow-xl shadow-blue-200 transition-all active:scale-95 flex items-center justify-center gap-3 mt-4"
-                                    >
-                                        <LucideIcon name="Save" size={22} />
-                                        RESERVAR AHORA
-                                    </button>
-                                </form>
-                            </section>
-                        </div>
-
-                        {/* SECCIÓN LISTADO / CALENDARIO */}
-                        <div className="lg:col-span-8">
-                            <section className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-slate-200 h-full">
-                                <div className="flex items-center justify-between mb-8">
-                                    <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
-                                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600">
-                                            <LucideIcon name="Calendar" size={24} />
-                                        </div>
-                                        Agenda de Ocupación
-                                    </h2>
-                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-widest">En tiempo real</span>
-                                </div>
-
-                                <div className="space-y-4 custom-scrollbar overflow-y-auto max-h-[600px] pr-2">
-                                    {reservas.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center py-20 text-slate-300">
-                                            <LucideIcon name="Clock" size={60} strokeWidth={1} className="opacity-20 mb-4" />
-                                            <p className="font-medium italic tracking-tight">No se han registrado reservas todavía</p>
-                                        </div>
-                                    ) : (
-                                        reservas.map(res => (
-                                            <div key={res.id} className="group flex items-center justify-between p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 hover:border-blue-300 hover:bg-white transition-all duration-300">
-                                                <div className="flex items-center gap-5">
-                                                    <div className={`p-4 rounded-2xl shadow-sm ${res.tipo === 'espacio' ? 'bg-purple-100 text-purple-600' : 'bg-orange-100 text-orange-600'}`}>
-                                                        <LucideIcon name={res.icono} size={24} />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-slate-800 text-lg leading-none mb-2">{res.nombreItem}</h4>
-                                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                                            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded-md">
-                                                                <LucideIcon name="User" size={12} /> {res.perfil}
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                                                <LucideIcon name="Calendar" size={12} /> {res.fecha}
-                                                            </div>
-                                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                                                                <LucideIcon name="Layers" size={12} /> Cant: {res.cantidad}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <button 
-                                                    onClick={() => setReservas(reservas.filter(r => r.id !== res.id))}
-                                                    className="text-slate-300 hover:text-red-500 hover:bg-red-50 p-3 rounded-full transition-all active:scale-90"
-                                                >
-                                                    <LucideIcon name="X" size={20} />
-                                                </button>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </section>
-                        </div>
-                    </div>
-                );
-            };
-
-            return (
-                <div className="min-h-screen flex flex-col">
-                    <Header />
-                    
-                    <main className="flex-grow max-w-7xl w-full mx-auto px-4 py-8">
-                        {/* BANNER DINÁMICO */}
-                        <div className="mb-10 bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 rounded-[2.5rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden">
-                            <div className="relative z-10">
-                                <span className="inline-block bg-white/20 backdrop-blur-md px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] mb-4">
-                                    Curso Escolar 2025/2026
-                                </span>
-                                <h2 className="text-3xl md:text-5xl font-black mb-3 tracking-tighter">
-                                    Panel de Gestión <br className="hidden md:block" /> Claustro SJO
-                                </h2>
-                                <p className="text-blue-100 text-sm md:text-lg max-w-xl font-medium opacity-90 leading-relaxed">
-                                    Reserva materiales y aulas en Cuevas del Becerro de forma inmediata. 
-                                    Optimiza tu tiempo y organiza tus clases con facilidad.
-                                </p>
-                            </div>
-                            <LucideIcon name="Layout" size={240} className="absolute -right-16 -bottom-16 text-white/10 -rotate-12 hidden lg:block" />
-                        </div>
-
-                        {/* VISTA CONDICIONAL */}
-                        {view === 'user' ? <UserPanel /> : <AdminPanel />}
-                    </main>
-
-                    <footer className="py-12 border-t border-slate-200 text-center">
-                        <div className="flex justify-center items-center gap-6 mb-4 grayscale opacity-50">
-                            {/* Aquí podrían ir logos del centro */}
-                        </div>
-                        <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em]">
-                            © CEIP San José Obrero · Cuevas del Becerro
-                        </p>
-                        <p className="text-slate-300 text-[9px] mt-2 uppercase tracking-widest font-medium">
-                            Digitalización del Entorno Educativo
-                        </p>
-                    </footer>
+  // ── RESUMEN ───────────────────────────────────────────────────────
+  function Overview() {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151",fontSize:13}}>{wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}</span>
+          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        <div style={{...C.card,padding:0,overflow:"hidden",marginBottom:20}}>
+          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>📋 Resumen semanal</span></div>
+          <div className="sx">
+            <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
+              <thead><tr style={{backgroundColor:"#f9fafb"}}>
+                <th style={{padding:"8px 10px",textAlign:"left",color:"#9ca3af",fontWeight:500}}>Recurso</th>
+                {wDates.map((d,i)=><th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:65}}><div>{DAYS[i].slice(0,3)}</div><div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>{isBlocked(dKey(d))&&<div style={{color:"#fb923c"}}>🚫</div>}</th>)}
+              </tr></thead>
+              <tbody>{resources.map(r=>(
+                <tr key={r.id} style={{borderTop:"1px solid #f3f4f6"}}>
+                  <td style={{padding:"8px 10px",fontWeight:500,color:"#374151"}}><span style={{marginRight:4}}>{r.icon}</span>{r.name}</td>
+                  {wDates.map((d,di)=>{
+                    const ds=dKey(d);
+                    if(isBlocked(ds)) return <td key={di} style={{textAlign:"center",color:"#fdba74"}}>🚫</td>;
+                    const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length, pct=uS/HOURS.length;
+                    return <td key={di} style={{padding:6,textAlign:"center"}}>
+                      {uS===0?<span style={{color:"#22c55e",fontWeight:600}}>Libre</span>:uS===HOURS.length?<span style={{color:"#f87171",fontWeight:600}}>Lleno</span>:<div><div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:6,marginBottom:3}}><div style={{width:`${pct*100}%`,backgroundColor:r.color,borderRadius:999,height:6}}/></div><span style={{color:r.color,fontWeight:600}}>{HOURS.length-uS}lib.</span>{mS>0&&<span style={{backgroundColor:r.color,color:"white",fontSize:10,borderRadius:4,padding:"1px 4px",marginLeft:3}}>✓{mS}</span>}</div>}
+                    </td>;
+                  })}
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+        <div style={{...C.card,padding:0,overflow:"hidden"}}>
+          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>⚡ Hoy — {new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</span></div>
+          <div style={{padding:12,display:"grid",gap:10}}>
+            {resources.map(r=>{
+              const td=dKey(new Date()), sl=HOURS.map(h=>({h,free:r.units-used(r.id,td,h),mine:myQty(r.id,td,h)>0})), tf=sl.filter(s=>s.free>0).length;
+              return <div key={r.id} style={{borderRadius:12,border:"1px solid #f3f4f6",overflow:"hidden"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",backgroundColor:r.color+"15"}}><span style={{fontSize:18}}>{r.icon}</span><span style={{fontWeight:600,color:"#374151",fontSize:13}}>{r.name}</span><span style={{marginLeft:"auto",color:r.color,fontWeight:600,fontSize:11}}>{tf}/{HOURS.length} libres</span></div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:8}}>
+                  {sl.map(s=><div key={s.h} style={{padding:"4px 8px",borderRadius:8,fontSize:11,fontWeight:500,backgroundColor:s.mine?r.color:s.free===0?"#fee2e2":"#f3f4f6",color:s.mine?"white":s.free===0?"#f87171":"#6b7280"}}>{s.h}{s.mine?" ✓":s.free===0?" ✗":""}</div>)}
                 </div>
-            );
-        };
+              </div>;
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+  // ── MES ───────────────────────────────────────────────────────────
+  function MonthView() {
+    const {days,year,month}=monthDays(mIdx);
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setMIdx(m=>Math.max(0,m-1))} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151"}}>{MONTHS[mIdx]} {month>=8?year:year+1}</span>
+          <button onClick={()=>setMIdx(m=>Math.min(9,m+1))} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
+        </div>
+        {fRes.map(r=>(
+          <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
+            <div style={{backgroundColor:"white",padding:12}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:4}}>{["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:11,color:"#9ca3af",fontWeight:500}}>{d}</div>)}</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+                {days.map((d,i)=>{
+                  if(!d) return <div key={i}/>;
+                  const date=new Date(year,month,d), dow=date.getDay(), isWE=dow===0||dow===6;
+                  const ds=`${year}-${month}-${d}`, blk=isBlocked(ds);
+                  const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length;
+                  return <div key={i} style={{borderRadius:8,padding:4,textAlign:"center",fontSize:11,backgroundColor:isWE?"#f9fafb":blk?"#fff7ed":"white"}}>
+                    <div style={{fontWeight:500,color:isWE?"#d1d5db":"#374151"}}>{d}</div>
+                    {blk&&<div style={{fontSize:9,color:"#fb923c"}}>🚫</div>}
+                    {!isWE&&!blk&&mS>0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:r.color,color:"white",fontSize:9,padding:"1px 2px"}}>✓{mS}</div>}
+                    {!isWE&&!blk&&uS>0&&mS===0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:"#d1d5db",color:"white",fontSize:9,padding:"1px 2px"}}>{uS}h</div>}
+                  </div>;
+                })}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── CURSO ─────────────────────────────────────────────────────────
+  function CourseView() {
+    const y=sy();
+    return (
+      <div>
+        <h3 style={{fontWeight:700,color:"#374151",textAlign:"center",marginBottom:16}}>Curso {y}/{y+1}</h3>
+        {fRes.map(r=>{
+          const md=MONTHS.map((_,mi)=>{const mn=MNUMS[mi],yr=mn>=8?y:y+1,last=new Date(yr,mn+1,0).getDate();let t=0;for(let d=1;d<=last;d++)HOURS.forEach(h=>{if(used(r.id,`${yr}-${mn}-${d}`,h)>0)t++;});return t;});
+          const mx=Math.max(...md,1);
+          return <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
+            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
+            <div style={{backgroundColor:"white",padding:16}}>
+              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80}}>
+                {MONTHS.map((_,mi)=>{const h=Math.max(4,(md[mi]/mx)*72);return <div key={mi} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:"100%",borderRadius:"4px 4px 0 0",height:h,backgroundColor:md[mi]>0?r.color:"#e5e7eb"}}/><span style={{color:"#9ca3af",fontSize:8}}>{MONTHS[mi].slice(0,3)}</span></div>;})}
+              </div>
+              <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
+                {md.map((v,mi)=>v>0&&<span key={mi} style={C.tag(r.color)}>{MONTHS[mi].slice(0,3)}: {v}</span>)}
+                {md.every(v=>v===0)&&<span style={{fontSize:12,color:"#9ca3af"}}>Sin reservas este curso</span>}
+              </div>
+            </div>
+          </div>;
+        })}
+      </div>
+    );
+  }
+
+  // ── MIS RESERVAS ──────────────────────────────────────────────────
+  function Mine() {
+    if(!area) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Selecciona tu área</div>;
+    const mine=[];
+    Object.entries(res).forEach(([k,entries])=>{ const my=entries.find(e=>e.area===area); if(my){const[rid,ds,h]=k.split("||");mine.push({rid,ds,h,qty:my.qty,r:resources.find(x=>x.id===rid)});} });
+    mine.sort((a,b)=>a.ds.localeCompare(b.ds)||a.h.localeCompare(b.h));
+    if(!mine.length) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No tienes reservas activas</div>;
+    return <div style={{display:"grid",gap:8}}>
+      {mine.map(({rid,ds,h,qty,r})=>r&&<div key={rid+ds+h} style={{display:"flex",alignItems:"center",gap:12,...C.card,padding:12}}>
+        <div style={{width:40,height:40,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,backgroundColor:r.color+"22"}}>{r.icon}</div>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h{qty>1?` · ${qty} unidades`:""}</div></div>
+        <button onClick={()=>cancelRes(rid,ds,h)} style={C.btn("#fee2e2","#f87171","4px 10px")}>Cancelar</button>
+      </div>)}
+    </div>;
+  }
+
+  // ── ADMIN ─────────────────────────────────────────────────────────
+  function Admin() {
+    const allRes=Object.entries(res);
+    const stats={};
+    allRes.forEach(([k,entries])=>entries.forEach(e=>{ if(!stats[e.area])stats[e.area]={total:0,r:{}}; stats[e.area].total++; const[rid]=k.split("||"); stats[e.area].r[rid]=(stats[e.area].r[rid]||0)+1; }));
+    const sorted=Object.entries(stats).sort((a,b)=>b[1].total-a[1].total);
+
+    function startEdit(r){setEditId(r.id);setEditF({name:r.name,icon:r.icon,units:r.units,color:r.color});}
+    function saveEdit(id){
+      if(!editF.name.trim())return alert("El nombre no puede estar vacío.");
+      saveRsrc(resources.map(r=>r.id===id?{...r,...editF,units:parseInt(editF.units)||1}:r));
+      setEditId(null);
+    }
+    function delRes(id){
+      if(!window.confirm("¿Eliminar este recurso y todas sus reservas?"))return;
+      const n={...res}; Object.keys(n).forEach(k=>{if(k.startsWith(id+"||"))delete n[k];}); saveRes(n);
+      saveRsrc(resources.filter(r=>r.id!==id));
+    }
+
+    const addNewArea = () => {
+      if(!newAreaName.trim()) return alert("Escribe el nombre del área");
+      if(areas.includes(newAreaName)) return alert("Esa área ya existe");
+      const newList = [...areas, newAreaName];
+      saveAreas(newList);
+      setNewAreaName("");
+      alert("Área añadida correctamente");
+    };
+
+    const deleteArea = (areaToDelete) => {
+      if(!window.confirm(`¿Eliminar el área "${areaToDelete}"?`)) return;
+      const newList = areas.filter(a => a !== areaToDelete);
+      saveAreas(newList);
+      alert("Área eliminada");
+    };
+
+    return <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <h2 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>🔐 Panel Administrador</h2>
+        <button onClick={()=>setAdmin(false)} style={C.btn("#fee2e2","#f87171")}>Salir</button>
+      </div>
+      <div style={{display:"flex",gap:4,marginBottom:20,overflowX:"auto"}}>
+        {[["res","🗑️ Reservas"],["blk","🚫 Días"],["rsrc","📦 Recursos"],["areas","👥 Áreas"],["rpt","📊 Informe"]].map(([t,l])=>(
+          <button key={t} onClick={()=>setATab(t)} style={{flexShrink:0,fontSize:11,padding:"8px 12px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:aTab===t?"#1f2937":"#f3f4f6",color:aTab===t?"white":"#6b7280"}}>{l}</button>
+        ))}
+      </div>
+
+      {/* Reservas */}
+      {aTab==="res"&&<div>
+        <p style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{allRes.length} reservas en total</p>
+        {allRes.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No hay reservas</div>}
+        <div style={{display:"grid",gap:8}}>
+          {allRes.map(([k,entries])=>{ const[rid,ds,h]=k.split("||"),r=resources.find(x=>x.id===rid); if(!r)return null;
+            return <div key={k} style={{...C.card,padding:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <span style={{fontSize:18}}>{r.icon}</span>
+                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h</div></div>
+                <button onClick={()=>{const n={...res};delete n[k];saveRes(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Eliminar</button>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{entries.map(e=><span key={e.area} style={C.tag(r.color)}>{e.area}{e.qty>1?` x${e.qty}`:""}</span>)}</div>
+            </div>;
+          })}
+        </div>
+      </div>}
+
+      {/* Días bloqueados */}
+      {aTab==="blk"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Bloquear día</h4>
+          <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,marginBottom:8}}/>
+          <input type="text" value={bLabel} onChange={e=>setBLabel(e.target.value)} placeholder="Motivo (Festivo, Excursión...)" style={{...C.inp,marginBottom:12}}/>
+          <button onClick={()=>{if(!bDate)return alert("Selecciona fecha.");const d=new Date(bDate);saveBlk({...blocked,["b__"+dKey(d)]:bLabel||"Bloqueado"});setBDate("");setBLabel("");}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Bloquear</button>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {Object.entries(blocked).map(([k,label])=>{const ds=k.replace("b__","");return <div key={k} style={{...C.card,border:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:10,padding:12}}><span style={{fontSize:20}}>🚫</span><div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{ds}</div><div style={{fontSize:11,color:"#fb923c"}}>{label}</div></div><button onClick={()=>{const n={...blocked};delete n[k];saveBlk(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Quitar</button></div>;})}
+          {Object.keys(blocked).length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:24}}>No hay días bloqueados</div>}
+        </div>
+      </div>}
+
+      {/* Recursos */}
+      {aTab==="rsrc"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir recurso</h4>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <select value={newR.icon} onChange={e=>setNewR({...newR,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:8,fontSize:20,width:52}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+            <input value={newR.name} onChange={e=>setNewR({...newR,name:e.target.value})} placeholder="Nombre" style={{...C.inp}}/>
+          </div>
+          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={newR.units} onChange={e=>setNewR({...newR,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setNewR({...newR,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:newR.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+          </div>
+          <button onClick={()=>{if(!newR.name.trim())return alert("Indica el nombre.");const id=newR.name.toLowerCase().replace(/\s+/g,"_")+"_"+Date.now();saveRsrc([...resources,{...newR,id,units:parseInt(newR.units)||1}]);setNewR({name:"",icon:"📦",units:1,color:COLORS[0]});}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Añadir</button>
+        </div>
+        <div style={{display:"grid",gap:10}}>
+          {resources.map(r=><div key={r.id} style={{...C.card,padding:12}}>
+            {editId===r.id
+              ? <div>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <select value={editF.icon} onChange={e=>setEditF({...editF,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:6,fontSize:20,width:48}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+                    <input value={editF.name} onChange={e=>setEditF({...editF,name:e.target.value})} style={{...C.inp}}/>
+                  </div>
+                  <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={editF.units} onChange={e=>setEditF({...editF,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setEditF({...editF,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:editF.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setEditId(null)} style={{...C.btn("#f3f4f6","#6b7280"),flex:1}}>Cancelar</button>
+                    <button onClick={()=>saveEdit(r.id)} style={{...C.btn("#1f2937","white"),flex:1}}>Guardar</button>
+                  </div>
+                </div>
+              : <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:44,height:44,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,backgroundColor:r.color+"22"}}>{r.icon}</div>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{r.units} {r.units===1?"unidad":"unidades"}</div></div>
+                  <button onClick={()=>startEdit(r)} style={C.btn("#eff6ff","#3b82f6","6px 12px")}>✏️</button>
+                  <button onClick={()=>delRes(r.id)} style={C.btn("#fee2e2","#f87171","6px 12px")}>🗑️</button>
+                </div>
+            }
+          </div>)}
+        </div>
+      </div>}
+
+      {/* Áreas */}
+      {aTab==="areas"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nueva área</h4>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newAreaName} onChange={e=>setNewAreaName(e.target.value)} placeholder="Nombre del área (ej: Infantil 6)" style={{...C.inp,flex:1}}/>
+            <button onClick={addNewArea} style={{...C.btn("#1f2937","white"),width:120}}>Añadir</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {areas.map(a => (
+            <div key={a} style={{...C.card,padding:12,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:18}}>👥</span>
+              <div style={{flex:1,fontWeight:600}}>{a}</div>
+              <button onClick={()=>deleteArea(a)} style={C.btn("#fee2e2","#f87171","6px 12px")}>Eliminar</button>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Informe */}
+      {aTab==="rpt"&&<div>
+        <h4 style={{fontWeight:600,color:"#374151",marginBottom:12,fontSize:13}}>Reservas por área</h4>
+        {sorted.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Sin datos</div>}
+        <div style={{display:"grid",gap:10}}>
+          {sorted.map(([a,st])=>{const mx=sorted[0][1].total;return <div key={a} style={{...C.card,padding:12}}>
+            <div style={{display:"flex",alignItems:"center",marginBottom:6}}><span style={{fontWeight:600,fontSize:13,color:"#374151"}}>{a}</span><span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:"#6b7280"}}>{st.total} reserva{st.total!==1?"s":""}</span></div>
+            <div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:8,marginBottom:8}}><div style={{width:`${(st.total/mx)*100}%`,backgroundColor:"#3b82f6",borderRadius:999,height:8}}/></div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{Object.entries(st.r).map(([rid,cnt])=>{const r=resources.find(x=>x.id===rid);if(!r)return null;return <span key={rid} style={C.tag(r.color)}>{r.icon} {r.name}: {cnt}</span>;})}
+            </div>
+          </div>;})}
+        </div>
+      </div>}
+    </div>;
+  }
+
+  // RENDER
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)"}}>
+      {/* Modal login admin */}
+      {loginOpen&&<div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+        <div style={{backgroundColor:"white",borderRadius:20,padding:28,width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:44,marginBottom:8}}>🔐</div>
+            <h3 style={{fontWeight:700,color:"#1f2937",fontSize:16,margin:0}}>Panel Administrador</h3>
+            <p style={{fontSize:12,color:"#9ca3af",margin:"4px 0 0"}}>CEIP San José Obrero</p>
+          </div>
+          {lockLeft>0&&<div style={{backgroundColor:"#fef3c7",border:"1px solid #fde68a",borderRadius:10,padding:"10px 12px",marginBottom:12,textAlign:"center"}}><div style={{fontSize:20,marginBottom:4}}>⏳</div><div style={{fontSize:13,fontWeight:600,color:"#92400e"}}>Bloqueado {lockLeft}s</div></div>}
+          <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setPwErr("");}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Contraseña" disabled={lockLeft>0}
+            style={{...C.inp,marginBottom:6,border:`1px solid ${pwErr?"#f87171":"#e5e7eb"}`,opacity:lockLeft>0?.5:1}}/>
+          {pwErr&&<p style={{fontSize:12,color:"#f87171",margin:"0 0 8px",textAlign:"center"}}>{pwErr}</p>}
+          {!lockLeft&&<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12}}>
+            {Array.from({length:MAX_INT}).map((_,i)=><div key={i} style={{width:8,height:8,borderRadius:"50%",backgroundColor:i<(getSec().attempts||0)?"#f87171":"#e5e7eb"}}/>)}
+          </div>}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setLogin(false);setPw("");setPwErr("");}} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+            <button onClick={tryLogin} disabled={lockLeft>0} style={{...C.btn("#1f2937","white"),flex:1,opacity:lockLeft>0?.5:1}}>Entrar</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Modal reserva */}
+      {modal&&(()=>{
+        const r=resources.find(x=>x.id===modal.rid), u=used(modal.rid,modal.ds,modal.h), free=r.units-u, sl=slot(modal.rid,modal.ds,modal.h);
+        return <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+          <div style={{backgroundColor:"white",borderRadius:20,padding:24,width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:48,height:48,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,backgroundColor:r.color+"22"}}>{r.icon}</div>
+              <div><h3 style={{fontWeight:700,color:"#1f2937",margin:0,fontSize:15}}>{r.name}</h3><p style={{fontSize:12,color:"#9ca3af",margin:"2px 0 0"}}>{modal.label}</p></div>
+            </div>
+            <div style={{backgroundColor:"#f9fafb",borderRadius:12,padding:12,marginBottom:16,fontSize:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563",marginBottom:4}}><span>Disponibles:</span><span style={{fontWeight:700,color:r.color}}>{free} de {r.units}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563"}}><span>Tu área:</span><span style={{fontWeight:600}}>{area}</span></div>
+              {sl.length>0&&<div style={{fontSize:11,color:"#9ca3af",paddingTop:8,borderTop:"1px solid #e5e7eb",marginTop:8}}>Ya: {sl.map(e=>`${e.area}${e.qty>1?` x${e.qty}`:""}`).join(", ")}</div>}
+            </div>
+            {r.units>1&&<div style={{marginBottom:16}}>
+              <label style={{fontSize:13,color:"#4b5563",display:"block",marginBottom:8}}>¿Cuántas unidades?</label>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <button onClick={()=>setQty(q=>Math.max(1,q-1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>−</button>
+                <span style={{fontWeight:700,fontSize:24,color:"#374151",width:36,textAlign:"center"}}>{qty}</span>
+                <button onClick={()=>setQty(q=>Math.min(free,q+1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>+</button>
+              </div>
+            </div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+              <button onClick={makeRes} style={{...C.btn(r.color,"white"),flex:1}}>Reservar</button>
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {/* Header mejorado */}
+      <div style={{backgroundColor:"white",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",position:"sticky",top:0,zIndex:10}}>
+        <div style={{maxWidth:900,margin:"0 auto",padding:"16px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+            <span style={{fontSize:32}}>🏫</span>
+            <div style={{flex:1}}>
+              <h1 className="header-title">CEIP San José Obrero</h1>
+              <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios y dispositivos</p>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:18}}>{db?"🟢":"🔴"}</span>
+              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:13,border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",backgroundColor:"white",color:"#374151",maxWidth:180}}>
+                <option value="">👤 Selecciona tu área</option>
+                {areas.map(a=><option key={a} value={a}>{a}</option>)}
+              </select>}
+              <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:12,padding:"8px 14px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
+                {admin?"🔓 Salir Admin":"🔐 Admin"}
+              </button>
+            </div>
+          </div>
+          {!admin&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[["week","📅 Semana"],["overview","📋 Resumen"],["month","🗓️ Mes"],["course","📊 Curso"],["mine","⭐ Mis reservas"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{flex:1,minWidth:100,fontSize:12,padding:"9px 8px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"#f3f4f6",color:view===v?"white":"#374151"}}>{l}</button>
+            ))}
+          </div>}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
+        {!admin&&view!=="mine"&&view!=="overview"&&<div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+          <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>Todos los recursos</button>
+          {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>{r.icon} {r.name}</button>)}
+        </div>}
+
+        {admin ? <Admin/> : <>
+          {view==="week"     && <WeekView/>}
+          {view==="overview" && <Overview/>}
+          {view==="month"    && <MonthView/>}
+          {view==="course"   && <CourseView/>}
+          {view==="mine"     && <div><h2 style={{fontWeight:700,color:"#374151",marginBottom:16}}>⭐ Mis Reservas {area?`— ${area}`:""}</h2><Mine/></div>}
+        </>}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
+
+<script>
+window.actualizarPassword = function(nuevaPass) {
+  if(!nuevaPass) return alert("Escribe una contraseña");
+  window._fbDb.ref('passwordMaestros').set(nuevaPass)
+    .then(() => alert("✅ Contraseña actualizada globalmente"))
+    .catch(e => alert("Error: " + e.message));
+};
+</script>
 </body>
 </html>
