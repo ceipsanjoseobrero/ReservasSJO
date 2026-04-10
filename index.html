@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>CEIP San José Obrero — Reservas</title>
 
-<!-- Firebase PRIMERO -->
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
   try {
     if (!firebase.apps.length) {
       firebase.initializeApp({
-        apiKey: "AIzaSyBuBHJHhHO8kwxifKhkZILohkVR94JU0os",
+        apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
         authDomain: "ceip-sjo-reservas.firebaseapp.com",
         databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
         projectId: "ceip-sjo-reservas",
@@ -38,6 +38,7 @@
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff);min-height:100vh;}
 .sx{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 button,select,input{-webkit-appearance:none;font-family:inherit;}
+.recreo { background-color: #fffbeb !important; }
 </style>
 </head>
 <body>
@@ -50,17 +51,20 @@ const db = window._fbDb;
 // ── Constantes ─────────────────────────────────────────────────────
 const PASS = "biblioflix2024";
 const MAX_INT = 5, LOCK_MS = 60000;
-const AREAS = ["Infantil 3","Infantil 4","Infantil 5","1º Primaria","2º Primaria","3º Primaria","4º Primaria","5º Primaria","6º Primaria","1º ESO","2º ESO","Inglés","Ed. Física","Música","Francés","Religión","PT","AL"];
+
 const RES0 = [
   {id:"informatica", name:"Aula de Informática", icon:"🖥️", units:1, color:"#6366f1"},
-  {id:"proyector",   name:"Proyector Móvil",     icon:"📽️", units:1, color:"#f59e0b"},
-  {id:"tablets",     name:"Tablets / iPads",     icon:"📱", units:15, color:"#10b981"},
-  {id:"biblioteca",  name:"Biblioteca",           icon:"📚", units:1,  color:"#8b5cf6"},
-  {id:"portatiles",  name:"Portátiles",           icon:"💻", units:20, color:"#3b82f6"},
-  {id:"matinal",     name:"Aula Matinal",         icon:"🌅", units:1,  color:"#ec4899"},
+  {id:"proyector", name:"Proyector Móvil", icon:"📽️", units:1, color:"#f59e0b"},
+  {id:"tablets", name:"Tablets / iPads", icon:"📱", units:15, color:"#10b981"},
+  {id:"biblioteca", name:"Biblioteca", icon:"📚", units:1, color:"#8b5cf6"},
+  {id:"portatiles", name:"Portátiles", icon:"💻", units:20, color:"#3b82f6"},
+  {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"},
 ];
+
+// HORARIO EN TRAMOS (con recreo destacado)
 const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
-const HLABELS = ["8:00","9:00","10:00","11:00","☕","11:30","12:30","13:30","14:30"];
+const HLABELS = ["8:00-9:00","9:00-10:00","10:00-11:00","11:00-11:30","11:30-12:30","12:30-13:30","13:30-14:30"];
+
 const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
 const MONTHS = ["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio"];
 const MNUMS = [8,9,10,11,0,1,2,3,4,5];
@@ -95,76 +99,67 @@ function failAttempt() {
 function resetSec() { setSec({attempts:0,lockedUntil:0}); }
 function lockSecs() { return Math.max(0,Math.ceil(((getSec().lockedUntil||0)-Date.now())/1000)); }
 
-// ── App ────────────────────────────────────────────────────────────
+// ── APP ────────────────────────────────────────────────────────────
 function App() {
-  const [view,    setView]    = useState("week");
-  const [area,    setArea]    = useState("");
-  const [res,     setRes]     = useState({});
+  const [view, setView] = useState("week");
+  const [area, setArea] = useState("");
+  const [res, setRes] = useState({});
   const [blocked, setBlocked] = useState({});
-  const [resources,setResources] = useState(RES0);
-  const [wOff,    setWOff]    = useState(0);
-  const [mIdx,    setMIdx]    = useState(()=>{ const i=MNUMS.indexOf(new Date().getMonth()); return i>=0?i:0; });
-  const [modal,   setModal]   = useState(null);
-  const [qty,     setQty]     = useState(1);
-  const [rFilt,   setRFilt]   = useState("all");
-  const [admin,   setAdmin]   = useState(false);
-  const [aTab,    setATab]    = useState("res");
-  const [loginOpen,setLogin]  = useState(false);
-  const [pw,      setPw]      = useState("");
-  const [pwErr,   setPwErr]   = useState("");
-  const [lockLeft,setLockLeft]= useState(0);
-  const [newR,    setNewR]    = useState({name:"",icon:"📦",units:1,color:COLORS[0]});
-  const [editId,  setEditId]  = useState(null);
-  const [editF,   setEditF]   = useState({});
-  const [bDate,   setBDate]   = useState("");
-  const [bLabel,  setBLabel]  = useState("");
+  const [resources, setResources] = useState(RES0);
+  const [areas, setAreas] = useState(["Infantil 3","Infantil 4","Infantil 5","1º Primaria","2º Primaria","3º Primaria","4º Primaria","5º Primaria","6º Primaria","1º ESO","2º ESO","Inglés","Ed. Física","Música","Francés","Religión","PT","AL"]);
+  const [wOff, setWOff] = useState(0);
+  const [mIdx, setMIdx] = useState(()=>{ const i=MNUMS.indexOf(new Date().getMonth()); return i>=0?i:0; });
+  const [modal, setModal] = useState(null);
+  const [qty, setQty] = useState(1);
+  const [rFilt, setRFilt] = useState("all");
+  const [admin, setAdmin] = useState(false);
+  const [aTab, setATab] = useState("res");
+  const [loginOpen, setLogin] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [lockLeft, setLockLeft] = useState(0);
+  const [newR, setNewR] = useState({name:"",icon:"📦",units:1,color:COLORS[0]});
+  const [newAreaName, setNewAreaName] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editF, setEditF] = useState({});
+  const [bDate, setBDate] = useState("");
+  const [bLabel, setBLabel] = useState("");
   const [masterPass, setMasterPass] = useState("3trimestre");
 
-  // ── Firebase listeners ────────────────────────────────────────────
+  // Firebase listeners
   useEffect(()=>{
     if(db) {
       db.ref("sjo/res").on("value", s=>setRes(s.val()||{}));
       db.ref("sjo/blocked").on("value", s=>setBlocked(s.val()||{}));
       db.ref("sjo/resources").on("value",s=>{ if(s.val()) setResources(s.val()); });
+      db.ref("sjo/areas").on("value", s=>{ if(s.val()) setAreas(s.val()); });
       db.ref("passwordMaestros").on("value", s=>setMasterPass(s.val() || "3trimestre"));
-      return ()=>{ 
-        db.ref("sjo/res").off(); 
-        db.ref("sjo/blocked").off(); 
-        db.ref("sjo/resources").off(); 
-        db.ref("passwordMaestros").off(); 
-      };
     }
   },[]);
 
-  // ── Lockout countdown ─────────────────────────────────────────────
   useEffect(()=>{
     if(!lockLeft) return;
     const t=setInterval(()=>{ const s=lockSecs(); setLockLeft(s); if(!s) clearInterval(t); },1000);
     return ()=>clearInterval(t);
   },[lockLeft]);
 
-  // ── Guardar ───────────────────────────────────────────────────────
-  function saveRes(v)  { setRes(v);       if(db) db.ref("sjo/res").set(v);       else { try{localStorage.setItem("sjo_res",JSON.stringify(v));}catch{} } }
-  function saveBlk(v)  { setBlocked(v);   if(db) db.ref("sjo/blocked").set(v);   else { try{localStorage.setItem("sjo_blocked",JSON.stringify(v));}catch{} } }
-  function saveRsrc(v) { setResources(v); if(db) db.ref("sjo/resources").set(v); else { try{localStorage.setItem("sjo_rsrc",JSON.stringify(v));}catch{} } }
+  function saveRes(v)  { setRes(v); if(db) db.ref("sjo/res").set(v); else try{localStorage.setItem("sjo_res",JSON.stringify(v));}catch{} }
+  function saveBlk(v)  { setBlocked(v); if(db) db.ref("sjo/blocked").set(v); else try{localStorage.setItem("sjo_blocked",JSON.stringify(v));}catch{} }
+  function saveRsrc(v) { setResources(v); if(db) db.ref("sjo/resources").set(v); else try{localStorage.setItem("sjo_rsrc",JSON.stringify(v));}catch{} }
+  function saveAreas(v) { setAreas(v); if(db) db.ref("sjo/areas").set(v); }
 
-  // ── Getters ───────────────────────────────────────────────────────
   function slot(rid,ds,h)   { return res[rKey(rid,ds,h)]||[]; }
   function used(rid,ds,h)   { return slot(rid,ds,h).reduce((a,b)=>a+b.qty,0); }
   function myQty(rid,ds,h)  { return (slot(rid,ds,h).find(e=>e.area===area)||{}).qty||0; }
   function isBlocked(ds)    { return !!blocked["b__"+ds]; }
 
-  // ── SOLUCIÓN DEL BUG: Selección de área con contraseña ─────────────
+  // Selector de área con contraseña
   const handleAreaChange = (e) => {
     const newArea = e.target.value;
-    if (!newArea || newArea === area) return;
-
+    if(!newArea || newArea === area) return;
     const passUsuario = prompt(`🔑 Clave de maestros para:\n${newArea}`);
-    if (passUsuario === null) {
-      e.target.value = area || "";
-      return;
-    }
-    if (passUsuario === masterPass) {
+    if(passUsuario === null) { e.target.value = area || ""; return; }
+    if(passUsuario === masterPass) {
       setArea(newArea);
     } else {
       alert("❌ Clave incorrecta");
@@ -172,7 +167,6 @@ function App() {
     }
   };
 
-  // ── Reservar ──────────────────────────────────────────────────────
   function openModal(rid,ds,h,label) {
     if(!area) return alert("Selecciona tu área primero.");
     if(isBlocked(ds)) return alert("Día bloqueado: "+(blocked["b__"+ds]||""));
@@ -193,7 +187,6 @@ function App() {
     const n={...res}; up.length?(n[k]=up):delete n[k]; saveRes(n);
   }
 
-  // ── Login admin ───────────────────────────────────────────────────
   function tryLogin() {
     if(lockSecs()>0) { setLockLeft(lockSecs()); setPwErr(`Bloqueado ${lockSecs()}s.`); return; }
     if(pw===PASS) { resetSec(); setAdmin(true); setLogin(false); setPw(""); setPwErr(""); }
@@ -201,13 +194,13 @@ function App() {
   }
 
   const wDates = weekDates(wOff);
-  const fRes   = rFilt==="all" ? resources : resources.filter(r=>r.id===rFilt);
+  const fRes = rFilt==="all" ? resources : resources.filter(r=>r.id===rFilt);
 
   const C = {
     card: {backgroundColor:"white",borderRadius:16,padding:16,border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
-    btn:  (bg,fg,p="10px 16px")=>({padding:p,borderRadius:12,backgroundColor:bg,color:fg,border:"none",cursor:"pointer",fontWeight:600,fontSize:13}),
-    inp:  {width:"100%",border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",boxSizing:"border-box"},
-    tag:  (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
+    btn: (bg,fg,p="10px 16px")=>({padding:p,borderRadius:12,backgroundColor:bg,color:fg,border:"none",cursor:"pointer",fontWeight:600,fontSize:13}),
+    inp: {width:"100%",border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",boxSizing:"border-box"},
+    tag: (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
   };
 
   // ── SEMANA ────────────────────────────────────────────────────────
@@ -215,7 +208,7 @@ function App() {
     return (
       <div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")} >← Ant.</button>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
           <span style={{fontWeight:600,color:"#374151",fontSize:13,textAlign:"center"}}>
             {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}
           </span>
@@ -232,7 +225,7 @@ function App() {
               <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
                 <thead>
                   <tr style={{backgroundColor:"#f9fafb"}}>
-                    <th style={{padding:"8px 6px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:44}}>Hora</th>
+                    <th style={{padding:"8px 10px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:100}}>Tramo</th>
                     {wDates.map((d,i)=>(
                       <th key={i} style={{padding:"8px 4px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
                         <div>{DAYS[i]}</div>
@@ -244,23 +237,25 @@ function App() {
                 </thead>
                 <tbody>
                   {HLABELS.map((hl,hi)=>{
-                    if(hl==="☕") return <tr key="rc" style={{backgroundColor:"#fffbeb"}}><td colSpan={6} style={{textAlign:"center",color:"#f59e0b",fontSize:11,padding:4,fontWeight:500}}>☕ Recreo</td></tr>;
-                    const h=HOURS[hi>4?hi-1:hi];
+                    const h = HOURS[hi];
+                    const isRecreo = hl === "11:00-11:30";
                     return (
-                      <tr key={h} style={{borderTop:"1px solid #f3f4f6"}}>
-                        <td style={{padding:"4px 6px",color:"#9ca3af",fontFamily:"monospace"}}>{h}</td>
+                      <tr key={h} style={{borderTop:"1px solid #f3f4f6", backgroundColor: isRecreo ? "#fffbeb" : "transparent"}}>
+                        <td style={{padding:"8px 12px",color:"#374151",fontWeight: isRecreo ? 700 : 600}}>
+                          {hl} {isRecreo && "☕"}
+                        </td>
                         {wDates.map((d,di)=>{
                           const ds=dKey(d), blk=isBlocked(ds), u=used(r.id,ds,h), free=r.units-u, mine=myQty(r.id,ds,h)>0, sl=slot(r.id,ds,h);
-                          if(blk) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"4px 2px",backgroundColor:"#fff7ed",color:"#fdba74"}}>🚫</span></td>;
+                          if(blk) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"6px 4px",backgroundColor:"#fff7ed",color:"#fdba74"}}>🚫</span></td>;
                           return (
                             <td key={di} style={{padding:4,textAlign:"center"}}>
                               {mine
-                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:r.color,color:"white",fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}{r.units>1?` (${free}L)`:""}</button>
+                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:r.color,color:"white",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}</button>
                                 : free===0
-                                  ? <div style={{borderRadius:8,padding:"4px 2px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:10,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sl.map(e=>e.area).join(", ")}</div>
+                                  ? <div style={{borderRadius:8,padding:"8px 4px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:11}}>{sl.map(e=>e.area).join(", ")}</div>
                                   : u>0
-                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} ${h}h`)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>{free} lib.</button>
-                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} ${h}h`)} style={{width:"100%",borderRadius:8,padding:"4px 2px",backgroundColor:r.color+"22",color:r.color,fontSize:11,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
+                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>{free} libres</button>
+                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:r.color+"22",color:r.color,fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
                               }
                             </td>
                           );
@@ -406,7 +401,7 @@ function App() {
     </div>;
   }
 
-  // ── ADMIN ─────────────────────────────────────────────────────────
+  // ── ADMIN (con nueva pestaña Áreas) ───────────────────────────────
   function Admin() {
     const allRes=Object.entries(res);
     const stats={};
@@ -425,18 +420,36 @@ function App() {
       saveRsrc(resources.filter(r=>r.id!==id));
     }
 
+    // Añadir nueva área
+    const addNewArea = () => {
+      if(!newAreaName.trim()) return alert("Escribe el nombre del área");
+      if(areas.includes(newAreaName)) return alert("Esa área ya existe");
+      const newList = [...areas, newAreaName];
+      saveAreas(newList);
+      setNewAreaName("");
+      alert("Área añadida correctamente");
+    };
+
+    const deleteArea = (areaToDelete) => {
+      if(!window.confirm(`¿Eliminar el área "${areaToDelete}"?`)) return;
+      const newList = areas.filter(a => a !== areaToDelete);
+      saveAreas(newList);
+      alert("Área eliminada");
+    };
+
     return <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
         <h2 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>🔐 Panel Administrador</h2>
         <button onClick={()=>setAdmin(false)} style={C.btn("#fee2e2","#f87171")}>Salir</button>
       </div>
       <div style={{display:"flex",gap:4,marginBottom:20,overflowX:"auto"}}>
-        {[["res","🗑️ Reservas"],["blk","🚫 Días"],["rsrc","📦 Recursos"],["rpt","📊 Informe"]].map(([t,l])=>(
+        {[["res","🗑️ Reservas"],["blk","🚫 Días"],["rsrc","📦 Recursos"],["areas","👥 Áreas"],["rpt","📊 Informe"]].map(([t,l])=>(
           <button key={t} onClick={()=>setATab(t)} style={{flexShrink:0,fontSize:11,padding:"8px 12px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:aTab===t?"#1f2937":"#f3f4f6",color:aTab===t?"white":"#6b7280"}}>{l}</button>
         ))}
       </div>
 
-      {aTab==="res"&&<div>
+      {/* Reservas */}
+      {aTab==="res"&&<div> {/* tu código original de reservas */ }
         <p style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{allRes.length} reservas en total</p>
         {allRes.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No hay reservas</div>}
         <div style={{display:"grid",gap:8}}>
@@ -453,7 +466,8 @@ function App() {
         </div>
       </div>}
 
-      {aTab==="blk"&&<div>
+      {/* Días bloqueados */}
+      {aTab==="blk"&&<div> {/* tu código original de bloqueos */ }
         <div style={{...C.card,marginBottom:16}}>
           <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Bloquear día</h4>
           <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,marginBottom:8}}/>
@@ -466,7 +480,8 @@ function App() {
         </div>
       </div>}
 
-      {aTab==="rsrc"&&<div>
+      {/* Recursos */}
+      {aTab==="rsrc"&&<div> {/* tu código original de recursos */ }
         <div style={{...C.card,marginBottom:16}}>
           <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir recurso</h4>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -507,7 +522,28 @@ function App() {
         </div>
       </div>}
 
-      {aTab==="rpt"&&<div>
+      {/* NUEVA PESTAÑA: ÁREAS */}
+      {aTab==="areas"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nueva área</h4>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newAreaName} onChange={e=>setNewAreaName(e.target.value)} placeholder="Nombre del área (ej: Infantil 6)" style={{...C.inp,flex:1}}/>
+            <button onClick={addNewArea} style={{...C.btn("#1f2937","white"),width:120}}>Añadir</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {areas.map(a => (
+            <div key={a} style={{...C.card,padding:12,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:18}}>👥</span>
+              <div style={{flex:1,fontWeight:600}}>{a}</div>
+              <button onClick={()=>deleteArea(a)} style={C.btn("#fee2e2","#f87171","6px 12px")}>Eliminar</button>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Informe */}
+      {aTab==="rpt"&&<div> {/* tu código original de informe */ }
         <h4 style={{fontWeight:600,color:"#374151",marginBottom:12,fontSize:13}}>Reservas por área</h4>
         {sorted.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Sin datos</div>}
         <div style={{display:"grid",gap:10}}>
@@ -522,10 +558,9 @@ function App() {
     </div>;
   }
 
-  // ── RENDER ────────────────────────────────────────────────────────
+  // RENDER
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)"}}>
-
       {/* Modal login admin */}
       {loginOpen&&<div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
         <div style={{backgroundColor:"white",borderRadius:20,padding:28,width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
@@ -588,10 +623,10 @@ function App() {
               <p style={{fontSize:11,color:"#9ca3af",margin:0}}>Cuevas del Becerro · Reserva de espacios y dispositivos</p>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span title={db?"Firebase conectado":"Sin conexión en tiempo real"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
-              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
+              <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
+              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:170}}>
                 <option value="">👤 Tu área</option>
-                {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
+                {areas.map(a=><option key={a} value={a}>{a}</option>)}
               </select>}
               <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:11,padding:"6px 12px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
                 {admin?"🔓 Salir":"🔐 Admin"}
