@@ -35,26 +35,25 @@ try {
 
 // 1. Función para validar acceso con contraseña desde Firebase
 window.verificarAcceso = function(areaDestino) {
-// Si no elige nada (vuelve a "Tu área"), reseteamos y salimos
-if (!areaDestino) { setArea(""); return; }
-
-// Si ya pusimos la clave hace un momento, no la pedimos otra vez
-if (window.accesoAutorizado === areaDestino) return;
+if (!areaDestino) return;
 
 window._fbDb.ref('passwordMaestros').once('value').then((snapshot) => {
 const passCorrecta = snapshot.val() || "3trimestre";
 const passUsuario = prompt("Introduce la contraseña de maestros:");
 
 if (passUsuario === passCorrecta) {
-window.accesoAutorizado = areaDestino; // Recordamos el éxito
+// Guardamos que ya estamos autorizados para que no vuelva a pedirla
+window.accesoAutorizado = areaDestino;
+// Cambiamos el área para mostrar el calendario
 setArea(areaDestino);
-alert("Acceso concedido");
+// No ponemos alert para que la entrada sea fluida y sin bucles
 } else {
 alert("Contraseña incorrecta");
-setArea(""); // Si falla, reseteamos el selector
+setArea(""); // Si falla, vuelve a "Tu área"
 }
 });
 };
+
 
 // 2. Función para el Admin
 window.actualizarPassword = function(nuevaPass) {
@@ -615,7 +614,7 @@ function App() {
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               {/* Indicador Firebase */}
               <span title={db?"Firebase conectado":"Sin conexión en tiempo real"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
-              {!admin&&<select value={area} onChange={e => { if(e.target.value !== area) verificarAcceso(e.target.value); }} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
+              {!admin && <select value={area} onChange={e => { const val = e.target.value; if(val && val !== area) { verificarAcceso(val); } }} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
                 <option value="">👤 Tu área</option>
                 {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
               </select>}
