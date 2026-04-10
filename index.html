@@ -614,7 +614,7 @@ function App() {
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               {/* Indicador Firebase */}
               <span title={db?"Firebase conectado":"Sin conexión en tiempo real"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
-              {!admin && <select value={area} onChange={e => { const v = e.target.value; if(v !== area) { window.verificarAcceso(v); } }} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
+              {!admin && <select id="selectorArea" value={area} onChange={e =>  window.verificarAcceso(e.target.value) } style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
                 <option value="">👤 Tu área</option>
                 {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
               </select>}
