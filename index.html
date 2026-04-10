@@ -608,7 +608,7 @@ function App() {
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               {/* Indicador Firebase */}
               <span title={db?"Firebase conectado":"Sin conexión en tiempo real"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
-              {!admin&&<select value={area} onChange={e=>setArea(e.target.value)} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
+              {!admin&&<select value={area} onChange={e=>verificarAcceso(e.target.value)} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:130}}>
                 <option value="">👤 Tu área</option>
                 {AREAS.map(a=><option key={a} value={a}>{a}</option>)}
               </select>}
@@ -646,5 +646,16 @@ function App() {
 
 ReactDOM.render(<App/>, document.getElementById("root"));
 </script>
+<div style="margin: 20px; padding: 20px; border: 2px solid #ff9800; border-radius: 15px; background: #fff5e6; font-family: sans-serif;">
+<h3 style="color: #e65100; margin-top: 0;">🔐 Gestión de Clave Maestros</h3>
+<p style="font-size: 14px;">Escribe la nueva contraseña y dale a guardar:</p>
+<div style="display: flex; gap: 10px;">
+<input type="text" id="nuevaPassTxt" placeholder="Nueva clave" style="padding: 10px; border: 1px solid #ffb74d; border-radius: 8px; flex-grow: 1;">
+<button onclick="actualizarPassword(document.getElementById('nuevaPassTxt').value)"
+style="background: #ef6c00; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">
+GUARDAR CLAVE
+</button>
+</div>
+</div>
 </body>
 </html>
