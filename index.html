@@ -38,7 +38,14 @@
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff);min-height:100vh;}
 .sx{overflow-x:auto;-webkit-overflow-scrolling:touch;}
 button,select,input{-webkit-appearance:none;font-family:inherit;}
-.recreo { background-color: #fffbeb !important; }
+.recreo { 
+  background-color: #fffbeb !important; 
+  color: #d97706 !important; 
+  font-weight: 700;
+  font-size: 13px;
+}
+.header-title { font-size: 22px; font-weight: 700; color: #1f2937; margin: 0; }
+.header-subtitle { font-size: 13px; color: #6b7280; font-weight: 600; margin: 2px 0 0 0; }
 </style>
 </head>
 <body>
@@ -61,7 +68,7 @@ const RES0 = [
   {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"},
 ];
 
-// HORARIO EN TRAMOS (con recreo destacado)
+// HORARIO EN TRAMOS CLAROS
 const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
 const HLABELS = ["8:00-9:00","9:00-10:00","10:00-11:00","11:00-11:30","11:30-12:30","12:30-13:30","13:30-14:30"];
 
@@ -203,7 +210,7 @@ function App() {
     tag: (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
   };
 
-  // ── SEMANA ────────────────────────────────────────────────────────
+  // ── SEMANA con recreo especial ─────────────────────────────────────
   function WeekView() {
     return (
       <div>
@@ -225,9 +232,9 @@ function App() {
               <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
                 <thead>
                   <tr style={{backgroundColor:"#f9fafb"}}>
-                    <th style={{padding:"8px 10px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:100}}>Tramo</th>
+                    <th style={{padding:"8px 12px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:110}}>Tramo Horario</th>
                     {wDates.map((d,i)=>(
-                      <th key={i} style={{padding:"8px 4px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
+                      <th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
                         <div>{DAYS[i]}</div>
                         <div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>
                         {isBlocked(dKey(d))&&<div style={{color:"#fb923c",fontSize:10}}>🚫</div>}
@@ -241,21 +248,21 @@ function App() {
                     const isRecreo = hl === "11:00-11:30";
                     return (
                       <tr key={h} style={{borderTop:"1px solid #f3f4f6", backgroundColor: isRecreo ? "#fffbeb" : "transparent"}}>
-                        <td style={{padding:"8px 12px",color:"#374151",fontWeight: isRecreo ? 700 : 600}}>
-                          {hl} {isRecreo && "☕"}
+                        <td style={{padding:"10px 12px",color: isRecreo ? "#d97706" : "#374151",fontWeight: isRecreo ? 700 : 600, fontSize: isRecreo ? "13px" : "12px"}}>
+                          {isRecreo ? "☕ RECREO" : hl}
                         </td>
                         {wDates.map((d,di)=>{
                           const ds=dKey(d), blk=isBlocked(ds), u=used(r.id,ds,h), free=r.units-u, mine=myQty(r.id,ds,h)>0, sl=slot(r.id,ds,h);
-                          if(blk) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"6px 4px",backgroundColor:"#fff7ed",color:"#fdba74"}}>🚫</span></td>;
+                          if(blk || isRecreo) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"8px 6px",backgroundColor:"#fef3c7",color:"#d97706",fontSize:12}}>☕ Recreo</span></td>;
                           return (
                             <td key={di} style={{padding:4,textAlign:"center"}}>
                               {mine
-                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:r.color,color:"white",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}</button>
+                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color,color:"white",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}</button>
                                 : free===0
-                                  ? <div style={{borderRadius:8,padding:"8px 4px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:11}}>{sl.map(e=>e.area).join(", ")}</div>
+                                  ? <div style={{borderRadius:8,padding:"8px 6px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:11}}>{sl.map(e=>e.area).join(", ")}</div>
                                   : u>0
-                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>{free} libres</button>
-                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 4px",backgroundColor:r.color+"22",color:r.color,fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
+                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>{free} libres</button>
+                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color+"22",color:r.color,fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
                               }
                             </td>
                           );
@@ -401,7 +408,7 @@ function App() {
     </div>;
   }
 
-  // ── ADMIN (con nueva pestaña Áreas) ───────────────────────────────
+  // ── ADMIN ─────────────────────────────────────────────────────────
   function Admin() {
     const allRes=Object.entries(res);
     const stats={};
@@ -420,7 +427,6 @@ function App() {
       saveRsrc(resources.filter(r=>r.id!==id));
     }
 
-    // Añadir nueva área
     const addNewArea = () => {
       if(!newAreaName.trim()) return alert("Escribe el nombre del área");
       if(areas.includes(newAreaName)) return alert("Esa área ya existe");
@@ -449,7 +455,7 @@ function App() {
       </div>
 
       {/* Reservas */}
-      {aTab==="res"&&<div> {/* tu código original de reservas */ }
+      {aTab==="res"&&<div>
         <p style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{allRes.length} reservas en total</p>
         {allRes.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No hay reservas</div>}
         <div style={{display:"grid",gap:8}}>
@@ -467,7 +473,7 @@ function App() {
       </div>}
 
       {/* Días bloqueados */}
-      {aTab==="blk"&&<div> {/* tu código original de bloqueos */ }
+      {aTab==="blk"&&<div>
         <div style={{...C.card,marginBottom:16}}>
           <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Bloquear día</h4>
           <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,marginBottom:8}}/>
@@ -481,7 +487,7 @@ function App() {
       </div>}
 
       {/* Recursos */}
-      {aTab==="rsrc"&&<div> {/* tu código original de recursos */ }
+      {aTab==="rsrc"&&<div>
         <div style={{...C.card,marginBottom:16}}>
           <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir recurso</h4>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
@@ -522,7 +528,7 @@ function App() {
         </div>
       </div>}
 
-      {/* NUEVA PESTAÑA: ÁREAS */}
+      {/* Áreas */}
       {aTab==="areas"&&<div>
         <div style={{...C.card,marginBottom:16}}>
           <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nueva área</h4>
@@ -543,7 +549,7 @@ function App() {
       </div>}
 
       {/* Informe */}
-      {aTab==="rpt"&&<div> {/* tu código original de informe */ }
+      {aTab==="rpt"&&<div>
         <h4 style={{fontWeight:600,color:"#374151",marginBottom:12,fontSize:13}}>Reservas por área</h4>
         {sorted.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Sin datos</div>}
         <div style={{display:"grid",gap:10}}>
@@ -613,29 +619,29 @@ function App() {
         </div>;
       })()}
 
-      {/* Header */}
+      {/* Header mejorado */}
       <div style={{backgroundColor:"white",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",position:"sticky",top:0,zIndex:10}}>
-        <div style={{maxWidth:900,margin:"0 auto",padding:"12px 16px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-            <span style={{fontSize:26}}>🏫</span>
+        <div style={{maxWidth:900,margin:"0 auto",padding:"16px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+            <span style={{fontSize:32}}>🏫</span>
             <div style={{flex:1}}>
-              <h1 style={{fontWeight:700,color:"#1f2937",fontSize:14,margin:0,lineHeight:1.2}}>CEIP San José Obrero</h1>
-              <p style={{fontSize:11,color:"#9ca3af",margin:0}}>Cuevas del Becerro · Reserva de espacios y dispositivos</p>
+              <h1 className="header-title">CEIP San José Obrero</h1>
+              <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios y dispositivos</p>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:16}}>{db?"🟢":"🔴"}</span>
-              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:12,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 10px",backgroundColor:"white",color:"#374151",maxWidth:170}}>
-                <option value="">👤 Tu área</option>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:18}}>{db?"🟢":"🔴"}</span>
+              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:13,border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",backgroundColor:"white",color:"#374151",maxWidth:180}}>
+                <option value="">👤 Selecciona tu área</option>
                 {areas.map(a=><option key={a} value={a}>{a}</option>)}
               </select>}
-              <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:11,padding:"6px 12px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
-                {admin?"🔓 Salir":"🔐 Admin"}
+              <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:12,padding:"8px 14px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
+                {admin?"🔓 Salir Admin":"🔐 Admin"}
               </button>
             </div>
           </div>
-          {!admin&&<div style={{display:"flex",gap:4}}>
+          {!admin&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[["week","📅 Semana"],["overview","📋 Resumen"],["month","🗓️ Mes"],["course","📊 Curso"],["mine","⭐ Mis reservas"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setView(v)} style={{flex:1,fontSize:11,padding:"7px 2px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"transparent",color:view===v?"white":"#6b7280"}}>{l}</button>
+              <button key={v} onClick={()=>setView(v)} style={{flex:1,minWidth:100,fontSize:12,padding:"9px 8px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"#f3f4f6",color:view===v?"white":"#374151"}}>{l}</button>
             ))}
           </div>}
         </div>
@@ -644,8 +650,8 @@ function App() {
       {/* Contenido */}
       <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
         {!admin&&view!=="mine"&&view!=="overview"&&<div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
-          <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:11,padding:"6px 12px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 2px rgba(0,0,0,0.05)"}}>Todos</button>
-          {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:11,padding:"6px 12px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 2px rgba(0,0,0,0.05)"}}>{r.icon} {r.name}</button>)}
+          <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>Todos los recursos</button>
+          {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>{r.icon} {r.name}</button>)}
         </div>}
 
         {admin ? <Admin/> : <>
@@ -668,7 +674,7 @@ window.actualizarPassword = function(nuevaPass) {
   if(!nuevaPass) return alert("Escribe una contraseña");
   window._fbDb.ref('passwordMaestros').set(nuevaPass)
     .then(() => alert("✅ Contraseña actualizada globalmente"))
-    .catch((e) => alert("Error: " + e.message));
+    .catch(e => alert("Error: " + e.message));
 };
 </script>
 </body>
