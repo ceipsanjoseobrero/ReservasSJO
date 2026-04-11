@@ -1,609 +1,764 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reservas SJO - Gestión Integral de Recursos TIC</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>CEIP San José Obrero — Reservas</title>
 
-    <style>
-        /* ESTILOS CORE Y UI/UX */
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+  try {
+    if (!firebase.apps.length) {
+      firebase.initializeApp({
+        apiKey: "AIzaSyD6CSmUdL7BfGaa7Pwxtwsdtw8wO7TnjAA",
+        authDomain: "ceip-sjo-reservas.firebaseapp.com",
+        databaseURL: "https://ceip-sjo-reservas-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "ceip-sjo-reservas",
+        storageBucket: "ceip-sjo-reservas.firebasestorage.app",
+        messagingSenderId: "448340997755",
+        appId: "1:448340997755:web:995fc7cc6f76215a70d4de"
+      });
+    }
+    window._fbDb = firebase.database();
+    console.log("✅ Firebase OK");
+  } catch(e) {
+    console.error("❌ Firebase error:", e.message);
+  }
+</script>
 
-        :root {
-            --primary-sjo: #1e3a8a;
-            --secondary-sjo: #3b82f6;
-            --admin-red: #dc2626;
-            --recreo-bg: #fef3c7;
-            --recreo-text: #92400e;
-        }
+<!-- React y Babel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 
-        body {
-            font-family: 'Outfit', sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
-        }
+<style>
+*{box-sizing:border-box;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:linear-gradient(135deg,#eff6ff,#f5f3ff);min-height:100vh;overflow-x:hidden;}
+.sx{overflow-x:auto;-webkit-overflow-scrolling:touch;width:100%;display:block;}
+button,select,input{-webkit-appearance:none;font-family:inherit;}
+.recreo { 
+  background-color: #fffbeb !important; 
+  color: #d97706 !important; 
+  font-weight: 700;
+  font-size: 13px;
+  border: 1px dashed #fbbf24 !important;
+}
+.header-title { font-size: 22px; font-weight: 700; color: #1f2937; margin: 0; }
+.header-subtitle { font-size: 13px; color: #6b7280; font-weight: 600; margin: 2px 0 0 0; }
 
-        /* DISEÑO DE GRID DE HORARIO MEJORADO */
-        .schedule-grid {
-            display: grid;
-            grid-template-columns: 140px repeat(5, 1fr);
-            gap: 1px;
-            background-color: #cbd5e1;
-            border: 2px solid #1e293b;
-            border-radius: 1rem;
-            overflow: hidden;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        }
+/* Optimizaciones para móviles */
+@media (max-width: 600px) {
+  .header-title { font-size: 18px; }
+  .header-subtitle { font-size: 11px; }
+  .nav-buttons { gap: 4px !important; }
+  .nav-buttons button { font-size: 10px !important; padding: 8px 4px !important; min-width: 0 !important; }
+  .resource-filters { gap: 4px !important; }
+  .resource-filters button { font-size: 10px !important; padding: 6px 10px !important; }
+  .header-main-row { flex-direction: column; align-items: flex-start !important; gap: 8px !important; }
+  .header-actions { width: 100%; justify-content: space-between; }
+  .sx { margin: 0 -16px; padding: 0 16px; width: calc(100% + 32px); }
+  .timetable-grid { grid-template-columns: 60px repeat(5, 160px) !important; }
+}
 
-        .header-cell {
-            background-color: #1e293b;
-            color: #ffffff;
-            padding: 1.25rem;
-            text-align: center;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
+/* Botón de salida */
+.exit-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  z-index: 100;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.exit-btn:hover { background: #fecaca; transform: scale(1.1); }
 
-        .time-cell {
-            background-color: #f1f5f9;
-            padding: 1.5rem;
-            text-align: center;
-            font-weight: 700;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .slot-cell {
-            background-color: #ffffff;
-            min-height: 120px;
-            padding: 0.75rem;
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .slot-cell:hover {
-            background-color: #eff6ff;
-            transform: scale(1.01);
-            z-index: 10;
-        }
-
-        /* UNIFICACIÓN DEL RECREO (Mejora solicitada) */
-        .recreo-row {
-            grid-column: 1 / span 6;
-            background-color: var(--recreo-bg);
-            color: var(--recreo-text);
-            padding: 1.5rem;
-            text-align: center;
-            font-weight: 800;
-            font-size: 1.1rem;
-            text-transform: uppercase;
-            letter-spacing: 0.3em;
-            border-top: 3px solid #fcd34d;
-            border-bottom: 3px solid #fcd34d;
-        }
-
-        /* LÓGICA DE VISIBILIDAD ADMIN (Resolución de problema) */
-        .admin-view { display: none; }
-        body.is-admin .admin-view { display: block; }
-        
-        .reservation-card {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            border-left: 5px solid #2563eb;
-            padding: 0.6rem;
-            border-radius: 0.5rem;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .status-badge {
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 9999px;
-            font-weight: 700;
-        }
-
-        /* Animaciones */
-        @keyframes slideDown {
-            from { transform: translateY(-10px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .animate-fade { animation: slideDown 0.4s ease-out; }
-
-        /* Estilos de utilidades para completar 44kb+ */
-        .custom-shadow { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
-        .loading-screen { position: fixed; inset: 0; z-index: 100; background: white; display: flex; align-items: center; justify-content: center; }
-    </style>
+/* Tabla de Horario */
+.timetable-grid {
+  display: grid;
+  grid-template-columns: 80px repeat(5, minmax(150px, 1fr));
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+  min-width: fit-content;
+}
+.timetable-cell {
+  border: 0.5px solid #f1f5f9;
+  padding: 8px;
+  min-height: 80px;
+}
+.timetable-header {
+  background: #f8fafc;
+  font-weight: 700;
+  text-align: center;
+  padding: 12px 8px;
+  border-bottom: 2px solid #e2e8f0;
+}
+.time-col {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 2px solid #e2e8f0;
+}
+</style>
 </head>
+<body>
+<div id="root"></div>
 
-<body class="min-h-screen">
+<script type="text/babel">
+const {useState, useEffect} = React;
+const db = window._fbDb;
 
-    <div id="loader" class="loading-screen">
-        <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-4 border-blue-600 border-r-transparent mb-4"></div>
-            <p class="font-bold text-gray-600">Sincronizando con CEIP San José Obrero...</p>
+// ── Constantes ─────────────────────────────────────────────────────
+const PASS = "biblioflix2024";
+const MAX_INT = 5, LOCK_MS = 60000;
+
+const RES0 = [
+  {id:"informatica", name:"Aula de Informática", icon:"🖥️", units:1, color:"#6366f1"},
+  {id:"proyector", name:"Proyector Móvil", icon:"📽️", units:1, color:"#f59e0b"},
+  {id:"tablets", name:"Tablets / iPads", icon:"📱", units:15, color:"#10b981"},
+  {id:"biblioteca", name:"Biblioteca", icon:"📚", units:1, color:"#8b5cf6"},
+  {id:"portatiles", name:"Portátiles", icon:"💻", units:20, color:"#3b82f6"},
+  {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"},
+];
+
+const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
+const HLABELS = ["8:00-9:00","9:00-10:00","10:00-11:00","11:00-11:30","11:30-12:30","12:30-13:30","13:30-14:30"];
+const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
+const MONTHS = ["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio"];
+const MNUMS = [8,9,10,11,0,1,2,3,4,5];
+const COLORS = ["#6366f1","#f59e0b","#10b981","#8b5cf6","#3b82f6","#ec4899","#ef4444","#14b8a6","#f97316","#84cc16"];
+const ICONS = ["🖥️","📽️","📱","📚","💻","🌅","🎨","🔬","🎵","🏃","📐","📦"];
+
+// ── Helpers fecha ──────────────────────────────────────────────────
+function sy() { const n=new Date(); return n.getMonth()>=8?n.getFullYear():n.getFullYear()-1; }
+function dKey(d) { return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function rKey(rid,ds,h) { return `${rid}||${ds}||${h}`; }
+function weekDates(off) {
+  const now=new Date(), day=now.getDay(), diff=day===0?-6:1-day, mon=new Date(now);
+  mon.setDate(now.getDate()+diff+off*7);
+  return Array.from({length:5},(_,i)=>{ const d=new Date(mon); d.setDate(mon.getDate()+i); return d; });
+}
+function monthDays(mi) {
+  const mn=MNUMS[mi], y=mn>=8?sy():sy()+1;
+  const first=new Date(y,mn,1), last=new Date(y,mn+1,0), days=[];
+  let dow=first.getDay(); dow=dow===0?6:dow-1;
+  for(let i=0;i<dow;i++) days.push(null);
+  for(let d=1;d<=last.getDate();d++) days.push(d);
+  return {days,year:y,month:mn};
+}
+
+// ── Seguridad ──────────────────────────────────────────────────────
+function getSec() { try{return JSON.parse(sessionStorage.getItem("_sec")||"{}");} catch{return{};} }
+function setSec(s) { try{sessionStorage.setItem("_sec",JSON.stringify(s));}catch{} }
+function failAttempt() {
+  const s=getSec(), a=(s.attempts||0)+1, lock=a>=MAX_INT?Date.now()+LOCK_MS:(s.lockedUntil||0);
+  setSec({attempts:a,lockedUntil:lock}); return {attempts:a,lockedUntil:lock};
+}
+function resetSec() { setSec({attempts:0,lockedUntil:0}); }
+function lockSecs() { return Math.max(0,Math.ceil(((getSec().lockedUntil||0)-Date.now())/1000)); }
+
+// ── APP ────────────────────────────────────────────────────────────
+function App() {
+  const [view, setView] = useState("week");
+  const [area, setArea] = useState("");
+  const [res, setRes] = useState({});
+  const [blocked, setBlocked] = useState({});
+  const [resources, setResources] = useState(RES0);
+  const [areas, setAreas] = useState(["Infantil 3","Infantil 4","Infantil 5","1º Primaria","2º Primaria","3º Primaria","4º Primaria","5º Primaria","6º Primaria","1º ESO","2º ESO","Inglés","Ed. Física","Música","Francés","Religión","PT","AL"]);
+  const [wOff, setWOff] = useState(0);
+  const [mIdx, setMIdx] = useState(()=>{ const i=MNUMS.indexOf(new Date().getMonth()); return i>=0?i:0; });
+  const [modal, setModal] = useState(null);
+  const [qty, setQty] = useState(1);
+  const [rFilt, setRFilt] = useState("all");
+  const [admin, setAdmin] = useState(false);
+  const [aTab, setATab] = useState("res");
+  const [loginOpen, setLogin] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState("");
+  const [lockLeft, setLockLeft] = useState(0);
+  const [newR, setNewR] = useState({name:"",icon:"📦",units:1,color:COLORS[0]});
+  const [newAreaName, setNewAreaName] = useState("");
+  const [editId, setEditId] = useState(null);
+  const [editF, setEditF] = useState({});
+  const [bDate, setBDate] = useState("");
+  const [bLabel, setBLabel] = useState("");
+  const [masterPass, setMasterPass] = useState("3trimestre");
+
+  // Firebase listeners
+  useEffect(()=>{
+    if(db) {
+      db.ref("sjo/res").on("value", s=>setRes(s.val()||{}));
+      db.ref("sjo/blocked").on("value", s=>setBlocked(s.val()||{}));
+      db.ref("sjo/resources").on("value",s=>{ if(s.val()) setResources(s.val()); });
+      db.ref("sjo/areas").on("value", s=>{ if(s.val()) setAreas(s.val()); });
+      db.ref("passwordMaestros").on("value", s=>setMasterPass(s.val() || "3trimestre"));
+    }
+  },[]);
+
+  useEffect(()=>{
+    if(!lockLeft) return;
+    const t=setInterval(()=>{ const s=lockSecs(); setLockLeft(s); if(!s) clearInterval(t); },1000);
+    return ()=>clearInterval(t);
+  },[lockLeft]);
+
+  function saveRes(v)  { setRes(v); if(db) db.ref("sjo/res").set(v); else try{localStorage.setItem("sjo_res",JSON.stringify(v));}catch{} }
+  function saveBlk(v)  { setBlocked(v); if(db) db.ref("sjo/blocked").set(v); else try{localStorage.setItem("sjo_blocked",JSON.stringify(v));}catch{} }
+  function saveRsrc(v) { setResources(v); if(db) db.ref("sjo/resources").set(v); else try{localStorage.setItem("sjo_rsrc",JSON.stringify(v));}catch{} }
+  function saveAreas(v) { setAreas(v); if(db) db.ref("sjo/areas").set(v); }
+
+  function slot(rid,ds,h)   { return res[rKey(rid,ds,h)]||[]; }
+  function used(rid,ds,h)   { return slot(rid,ds,h).reduce((a,b)=>a+b.qty,0); }
+  function myQty(rid,ds,h)  { return (slot(rid,ds,h).find(e=>e.area===area)||{}).qty||0; }
+  function isBlocked(ds)    { return !!blocked["b__"+ds]; }
+
+  // Ir a una fecha específica
+  function goToDate(d) {
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const target = new Date(d);
+    target.setHours(0,0,0,0);
+    
+    // Obtener el lunes de la semana actual
+    const currentDay = now.getDay();
+    const currentMonday = new Date(now);
+    currentMonday.setDate(now.getDate() - (currentDay === 0 ? 6 : currentDay - 1));
+    
+    // Obtener el lunes de la semana objetivo
+    const targetDay = target.getDay();
+    const targetMonday = new Date(target);
+    targetMonday.setDate(target.getDate() - (targetDay === 0 ? 6 : targetDay - 1));
+    
+    const weekDiff = Math.round((targetMonday - currentMonday) / (1000 * 60 * 60 * 24 * 7));
+    
+    setWOff(weekDiff);
+    setView("week");
+  }
+
+  // Borrar reservas pasadas
+  function clearOldRes() {
+    if(!confirm("¿Borrar todas las reservas de días anteriores a hoy?")) return;
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const n = {...res};
+    let count = 0;
+    Object.keys(n).forEach(k => {
+      const parts = k.split("||");
+      if(parts.length >= 2) {
+        const dParts = parts[1].split("-");
+        const d = new Date(dParts[0], dParts[1], dParts[2]);
+        if(d < now) {
+          delete n[k];
+          count++;
+        }
+      }
+    });
+    saveRes(n);
+    alert(`Se han borrado ${count} reservas antiguas.`);
+  }
+
+  // Selector de área con contraseña
+  const handleAreaChange = (e) => {
+    const newArea = e.target.value;
+    if(!newArea || newArea === area) return;
+    const passUsuario = prompt(`🔑 Clave de maestros para:\n${newArea}`);
+    if(passUsuario === null) { e.target.value = area || ""; return; }
+    if(passUsuario === masterPass) {
+      setArea(newArea);
+    } else {
+      alert("❌ Clave incorrecta");
+      e.target.value = area || "";
+    }
+  };
+
+  function openModal(rid,ds,h,label) {
+    if(!area) return alert("Selecciona tu área primero.");
+    if(isBlocked(ds)) return alert("Día bloqueado: "+(blocked["b__"+ds]||""));
+    setModal({rid,ds,h,label}); setQty(1);
+  }
+
+  function makeRes() {
+    const {rid,ds,h}=modal, r=resources.find(x=>x.id===rid);
+    const u=used(rid,ds,h);
+    if(u+qty>r.units) return alert(`Solo quedan ${r.units-u} unidades.`);
+    const k=rKey(rid,ds,h), ex=res[k]||[], idx=ex.findIndex(e=>e.area===area);
+    const up = idx>=0 ? ex.map((e,i)=>i===idx?{...e,qty:e.qty+qty}:e) : [...ex,{area,qty}];
+    saveRes({...res,[k]:up}); setModal(null);
+  }
+
+  function cancelRes(rid,ds,h) {
+    const k=rKey(rid,ds,h), up=(res[k]||[]).filter(e=>e.area!==area);
+    const n={...res}; up.length?(n[k]=up):delete n[k]; saveRes(n);
+  }
+
+  function tryLogin() {
+    if(lockSecs()>0) { setLockLeft(lockSecs()); setPwErr(`Bloqueado ${lockSecs()}s.`); return; }
+    if(pw===PASS) { resetSec(); setAdmin(true); setLogin(false); setPw(""); setPwErr(""); }
+    else { const {attempts,lockedUntil}=failAttempt(); if(lockedUntil>Date.now()){const s=Math.ceil((lockedUntil-Date.now())/1000);setPwErr(`Bloqueado ${s}s.`);setLockLeft(s);}else{setPwErr(`Incorrecta. Intentos: ${MAX_INT-attempts}/${MAX_INT}`);} }
+  }
+
+  const wDates = weekDates(wOff);
+  const fRes = rFilt==="all" ? resources : resources.filter(r=>r.id===rFilt);
+
+  const C = {
+    card: {backgroundColor:"white",borderRadius:16,padding:16,border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.07)"},
+    btn: (bg,fg,p="10px 16px")=>({padding:p,borderRadius:12,backgroundColor:bg,color:fg,border:"none",cursor:"pointer",fontWeight:600,fontSize:13}),
+    inp: {width:"100%",border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",fontSize:13,outline:"none",boxSizing:"border-box"},
+    tag: (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
+  };
+
+  // ── SEMANA MEJORADA ──────────────────────────────────────────
+  function WeekView() {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
+          <span style={{fontWeight:600,color:"#374151",fontSize:13,textAlign:"center"}}>
+            {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short"})}
+          </span>
+          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
         </div>
+        
+        <div className="sx">
+          <div className="timetable-grid">
+            <div className="timetable-header" style={{borderRight:"2px solid #e2e8f0"}}>Tramo</div>
+            {wDates.map(d => {
+              const ds=dKey(d), blk=blocked["b__"+ds];
+              return <div key={ds} className="timetable-header" style={{backgroundColor:blk?"#fee2e2":"#f8fafc"}}>
+                <div style={{fontSize:10,color:blk?"#ef4444":"#64748b"}}>{DAYS[d.getDay()-1]}</div>
+                <div style={{fontSize:16,color:blk?"#ef4444":"#1e293b"}}>{d.getDate()}</div>
+                {blk&&<div style={{fontSize:8,color:"#ef4444"}}>{blk}</div>}
+              </div>
+            })}
+
+            {HLABELS.map((h, hIdx) => {
+              const isRec = hIdx === 3;
+              return <React.Fragment key={h}>
+                <div className="time-col">{h}</div>
+                {wDates.map(d => {
+                  const ds=dKey(d), blk=blocked["b__"+ds];
+                  return <div key={ds+h} className="timetable-cell" style={{backgroundColor:isRec?"#fffbeb":""}}>
+                    {isRec ? <div className="recreo" style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>RECREO</div>
+                    : fRes.map(r => {
+                      const u=used(r.id,ds,h), my=myQty(r.id,ds,h), free=r.units-u;
+                      return <div key={r.id} onClick={()=>!blk&&openModal(r.id,ds,h,`${DAYS[d.getDay()-1]} ${d.getDate()} — ${h}`)}
+                        style={{
+                          padding:6, borderRadius:8, cursor:blk?"default":"pointer", marginBottom:4,
+                          border:my?`2px solid ${r.color}`:"1px solid #f1f5f9",
+                          backgroundColor:my?r.color+"15":"white", opacity:blk?0.4:1
+                        }}>
+                        <div style={{display:"flex",alignItems:"center",gap:4}}>
+                          <span style={{fontSize:12}}>{r.icon}</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:10,fontWeight:700,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+                            <div style={{fontSize:9,fontWeight:600,color:free>0?r.color:"#ef4444"}}>{free>0?`${free} libre${free!==1?"s":""}`:"Completo"}</div>
+                          </div>
+                        </div>
+                        {my>0&&<div style={{marginTop:2,padding:"1px 4px",backgroundColor:r.color,color:"white",borderRadius:4,fontSize:8,fontWeight:700}}>Tu reserva: {my}</div>}
+                      </div>
+                    })}
+                  </div>
+                })}
+              </React.Fragment>
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── RESUMEN ────────────────────────────────────────────────────────
+  function Overview() {
+    return <div style={{display:"grid",gap:20}}>
+      {wDates.map(d=>{
+        const ds=dKey(d), blk=blocked["b__"+ds];
+        return <div key={ds} style={C.card}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{width:40,height:40,borderRadius:12,backgroundColor:blk?"#fee2e2":"#eff6ff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              <span style={{fontSize:10,fontWeight:700,color:blk?"#ef4444":"#3b82f6"}}>{DAYS[d.getDay()-1].slice(0,3)}</span>
+              <span style={{fontSize:16,fontWeight:800,color:blk?"#ef4444":"#3b82f6"}}>{d.getDate()}</span>
+            </div>
+            <div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>{DAYS[d.getDay()-1]}, {d.getDate()} de {MONTHS[MNUMS.indexOf(d.getMonth())]}</h3>{blk&&<span style={{fontSize:12,color:"#ef4444",fontWeight:600}}>🚫 {blk}</span>}</div>
+          </div>
+          <div className="sx">
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{borderBottom:"1px solid #f3f4f6"}}><th style={{textAlign:"left",padding:8,color:"#9ca3af"}}>Tramo</th>{resources.map(r=><th key={r.id} style={{padding:8,color:"#9ca3af"}}>{r.icon}</th>)}</tr></thead>
+              <tbody>
+                {HLABELS.map((h,i)=>i===3?null:<tr key={h} style={{borderBottom:"1px solid #f9fafb"}}>
+                  <td style={{padding:8,fontWeight:600,color:"#4b5563"}}>{h}</td>
+                  {resources.map(r=>{
+                    const sl=slot(r.id,ds,h);
+                    return <td key={r.id} style={{padding:4,textAlign:"center"}}>
+                      {sl.length>0 ? <div style={{display:"flex",flexDirection:"column",gap:2}}>{sl.map((e,idx)=><div key={idx} style={{backgroundColor:r.color+"15",color:r.color,padding:"2px 4px",borderRadius:4,fontSize:10,fontWeight:700}}>{e.area}{e.qty>1?` (x${e.qty})`:""}</div>)}</div> : <span style={{color:"#e5e7eb"}}>—</span>}
+                    </td>
+                  })}
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      })}
+    </div>;
+  }
+
+  // ── MES MEJORADO ──────────────────────────────────────────────────
+  function MonthView() {
+    const {days,year,month}=monthDays(mIdx);
+    return <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <button onClick={()=>setMIdx(i=>Math.max(0,i-1))} style={C.btn("white","#374151")}>←</button>
+        <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{MONTHS[mIdx]} {year}</h3>
+        <button onClick={()=>setMIdx(i=>Math.min(MONTHS.length-1,i+1))} style={C.btn("white","#374151")}>→</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+        {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:"#9ca3af",padding:4}}>{d}</div>)}
+        {days.map((d,i)=>{
+          if(!d) return <div key={i}/>;
+          const ds=`${year}-${month}-${d}`, blk=blocked["b__"+ds], isT=dKey(new Date())===ds;
+          let total=0; Object.keys(res).forEach(k=>{ if(k.includes(`||${ds}||`)) total+=res[k].reduce((a,b)=>a+b.qty,0); });
+          return <div key={i} onClick={() => goToDate(new Date(year, month, d))}
+            style={{aspectRatio:"1/1",border:"1px solid #f3f4f6",borderRadius:12,padding:4,backgroundColor:blk?"#fee2e2":isT?"#eff6ff":"white",position:"relative",cursor:"pointer"}}>
+            <span style={{fontSize:13,fontWeight:700,color:blk?"#ef4444":isT?"#3b82f6":"#374151"}}>{d}</span>
+            {total>0&&<div style={{position:"absolute",bottom:4,right:4,width:18,height:18,borderRadius:"50%",backgroundColor:"#3b82f6",color:"white",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{total}</div>}
+            {blk&&<div style={{position:"absolute",top:4,right:4,fontSize:8,color:"#ef4444",fontWeight:700}}>🚫</div>}
+          </div>
+        })}
+      </div>
+      <p style={{fontSize:11,color:"#9ca3af",textAlign:"center",marginTop:12}}>💡 Pulsa en un día para ver su horario y reservar.</p>
+    </div>;
+  }
+
+  // ── CURSO (Estadísticas) ──────────────────────────────────────────
+  function CourseView() {
+    const stats = {};
+    Object.entries(res).forEach(([k,val])=>{
+      const [rid] = k.split("||");
+      val.forEach(e=>{
+        if(!stats[e.area]) stats[e.area] = {total:0, r:{}};
+        stats[e.area].total += e.qty;
+        stats[e.area].r[rid] = (stats[e.area].r[rid]||0) + e.qty;
+      });
+    });
+    const sorted = Object.entries(stats).sort((a,b)=>b[1].total - a[1].total);
+    return <div style={{display:"grid",gap:12}}>
+      <h3 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>Uso por Áreas (Curso {sy()}/{sy()+1})</h3>
+      {sorted.map(([a,st])=><div key={a} style={C.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontWeight:700,fontSize:14}}>{a}</span>
+          <span style={{fontSize:13,fontWeight:700,color:"#3b82f6"}}>{st.total} reservas</span>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {Object.entries(st.r).map(([rid,qty])=>{
+            const r=resources.find(x=>x.id===rid);
+            return <span key={rid} style={C.tag(r?.color||"#ccc")}>{r?.icon} {qty}</span>
+          })}
+        </div>
+      </div>)}
+    </div>;
+  }
+
+  // ── MIS RESERVAS ───────────────────────────────────────────────────
+  function Mine() {
+    if(!area) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:10}}>👤</div>Selecciona tu área para ver tus reservas</div>;
+    const my = [];
+    Object.entries(res).forEach(([k,val])=>{
+      const [rid,ds,h] = k.split("||");
+      const found = val.find(e=>e.area===area);
+      if(found) {
+        const d=new Date(ds.split("-")[0],ds.split("-")[1],ds.split("-")[2]);
+        if(d >= new Date(new Date().setHours(0,0,0,0))) my.push({rid,ds,h,qty:found.qty,d});
+      }
+    });
+    my.sort((a,b)=>a.d - b.d || HOURS.indexOf(a.h.split("-")[0]) - HOURS.indexOf(b.h.split("-")[0]));
+    return <div style={{display:"grid",gap:12}}>
+      {my.length===0 ? <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>No tienes reservas próximas</div>
+      : my.map((m,i)=>{
+        const r=resources.find(x=>x.id===m.rid);
+        return <div key={i} style={{...C.card,display:"flex",alignItems:"center",gap:12,borderLeft:`4px solid ${r.color}`}}>
+          <div style={{width:44,height:44,borderRadius:12,backgroundColor:r.color+"15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{r.icon}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{r.name} {m.qty>1?` (x${m.qty})`:""}</div>
+            <div style={{fontSize:12,color:"#64748b"}}>{m.ds.split("-").reverse().join("/")} • {m.h}</div>
+          </div>
+          <button onClick={()=>cancelRes(m.rid,m.ds,m.h)} style={C.btn("#fee2e2","#ef4444","8px 12px")}>Anular</button>
+        </div>
+      })}
+    </div>;
+  }
+
+  // ── PANEL ADMIN ────────────────────────────────────────────────────
+  function Admin() {
+    const addNewR = () => {
+      if(!newR.name) return;
+      const id = newR.name.toLowerCase().replace(/\s+/g,"_") + "_" + Date.now();
+      const updated = [...resources, {...newR, id}];
+      saveRsrc(updated);
+      setNewR({name:"",icon:"📦",units:1,color:COLORS[0]});
+    };
+    const delRes = (id) => { if(confirm("¿Eliminar este recurso?")) saveRsrc(resources.filter(x=>x.id!==id)); };
+    const startEdit = (r) => { setEditId(r.id); setEditF({...r}); };
+    const saveEdit = (id) => { saveRsrc(resources.map(x=>x.id===id?editF:x)); setEditId(null); };
+    
+    const addNewArea = () => { if(newAreaName && !areas.includes(newAreaName)) { saveAreas([...areas, newAreaName]); setNewAreaName(""); } };
+    const deleteArea = (a) => { if(confirm(`¿Eliminar el área ${a}?`)) saveAreas(areas.filter(x=>x!==a)); };
+
+    const stats = {};
+    Object.entries(res).forEach(([k,val])=>{
+      val.forEach(e=>{
+        if(!stats[e.area]) stats[e.area] = {total:0, r:{}};
+        stats[e.area].total += e.qty;
+        stats[e.area].r[k.split("||")[0]] = (stats[e.area].r[k.split("||")[0]]||0) + e.qty;
+      });
+    });
+    const sorted = Object.entries(stats).sort((a,b)=>b[1].total - a[1].total);
+
+    return <div>
+      <div style={{display:"flex",gap:8,marginBottom:20,overflowX:"auto",paddingBottom:4}}>
+        {[["res","🛠️ Recursos"],["areas","👥 Áreas"],["blk","🚫 Bloqueos"],["rpt","📊 Informe"],["clean","🧹 Limpieza"]].map(([v,l])=> (
+          <button key={v} onClick={()=>setATab(v)} style={{...C.btn(aTab===v?"#1f2937":"white",aTab===v?"white":"#374151"),flexShrink:0}}>{l}</button>
+        ))}
+      </div>
+
+      {/* Limpieza */}
+      {aTab==="clean"&&<div style={C.card}>
+        <h4 style={{margin:"0 0 12px",fontSize:14}}>Mantenimiento de Datos</h4>
+        <p style={{fontSize:12,color:"#6b7280",marginBottom:16}}>Usa este botón para borrar todas las reservas de días que ya han pasado. Esto ayuda a que la aplicación cargue más rápido.</p>
+        <button onClick={clearOldRes} style={C.btn("#ef4444","white")}>🧹 Borrar Reservas Pasadas</button>
+      </div>}
+
+      {/* Bloqueos */}
+      {aTab==="blk"&&<div style={C.card}>
+        <h4 style={{margin:"0 0 12px",fontSize:14}}>Bloquear día (festivos, etc.)</h4>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,width:150}}/>
+          <input placeholder="Motivo (ej: Semana Santa)" value={bLabel} onChange={e=>setBLabel(e.target.value)} style={{...C.inp,flex:1,minWidth:150}}/>
+          <button onClick={()=>{if(bDate&&bLabel){saveBlk({...blocked,["b__"+bDate]:bLabel});setBDate("");setBLabel("");}}} style={C.btn("#1f2937","white")}>Bloquear</button>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {Object.entries(blocked).map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:8,backgroundColor:"#f9fafb",borderRadius:10}}>
+            <span style={{fontSize:12,fontWeight:600}}>{k.replace("b__","").split("-").reverse().join("/")}: {v}</span>
+            <button onClick={()=>{const n={...blocked};delete n[k];saveBlk(n);}} style={C.btn("#fee2e2","#ef4444","4px 8px")}>✕</button>
+          </div>)}
+        </div>
+      </div>}
+
+      {/* Recursos */}
+      {aTab==="res"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nuevo recurso</h4>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <select value={newR.icon} onChange={e=>setNewR({...newR,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:6,fontSize:20,width:48}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+            <input placeholder="Nombre del recurso" value={newR.name} onChange={e=>setNewR({...newR,name:e.target.value})} style={{...C.inp,flex:1}}/>
+          </div>
+          <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={newR.units} onChange={e=>setNewR({...newR,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setNewR({...newR,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:newR.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+          </div>
+          <button onClick={addNewR} style={{...C.btn("#1f2937","white"),width:"100%"}}>Crear Recurso</button>
+        </div>
+        <div style={{display:"grid",gap:10}}>
+          {resources.map(r=><div key={r.id} style={{...C.card,padding:12}}>
+            {editId===r.id
+              ? <div>
+                  <div style={{display:"flex",gap:8,marginBottom:8}}>
+                    <select value={editF.icon} onChange={e=>setEditF({...editF,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:6,fontSize:20,width:48}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+                    <input value={editF.name} onChange={e=>setEditF({...editF,name:e.target.value})} style={{...C.inp}}/>
+                  </div>
+                  <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={editF.units} onChange={e=>setEditF({...editF,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setEditF({...editF,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:editF.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setEditId(null)} style={{...C.btn("#f3f4f6","#6b7280"),flex:1}}>Cancelar</button>
+                    <button onClick={()=>saveEdit(r.id)} style={{...C.btn("#1f2937","white"),flex:1}}>Guardar</button>
+                  </div>
+                </div>
+              : <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:44,height:44,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,backgroundColor:r.color+"22"}}>{r.icon}</div>
+                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{r.units} {r.units===1?"unidad":"unidades"}</div></div>
+                  <button onClick={()=>startEdit(r)} style={C.btn("#eff6ff","#3b82f6","6px 12px")}>✏️</button>
+                  <button onClick={()=>delRes(r.id)} style={C.btn("#fee2e2","#f87171","6px 12px")}>🗑️</button>
+                </div>
+            }
+          </div>)}
+        </div>
+      </div>}
+
+      {/* Áreas */}
+      {aTab==="areas"&&<div>
+        <div style={{...C.card,marginBottom:16}}>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nueva área</h4>
+          <div style={{display:"flex",gap:8}}>
+            <input value={newAreaName} onChange={e=>setNewAreaName(e.target.value)} placeholder="Nombre del área (ej: Infantil 6)" style={{...C.inp,flex:1}}/>
+            <button onClick={addNewArea} style={{...C.btn("#1f2937","white"),width:120}}>Añadir</button>
+          </div>
+        </div>
+        <div style={{display:"grid",gap:8}}>
+          {areas.map(a => (
+            <div key={a} style={{...C.card,padding:12,display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:18}}>👥</span>
+              <div style={{flex:1,fontWeight:600}}>{a}</div>
+              <button onClick={()=>deleteArea(a)} style={C.btn("#fee2e2","#f87171","6px 12px")}>Eliminar</button>
+            </div>
+          ))}
+        </div>
+      </div>}
+
+      {/* Informe */}
+      {aTab==="rpt"&&<div>
+        <h4 style={{fontWeight:600,color:"#374151",marginBottom:12,fontSize:13}}>Reservas por área</h4>
+        {sorted.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Sin datos</div>}
+        <div style={{display:"grid",gap:10}}>
+          {sorted.map(([a,st])=>{const mx=sorted[0][1].total;return <div key={a} style={{...C.card,padding:12}}>
+            <div style={{display:"flex",alignItems:"center",marginBottom:6}}><span style={{fontWeight:600,fontSize:13,color:"#374151"}}>{a}</span><span style={{marginLeft:"auto",fontSize:12,fontWeight:700,color:"#6b7280"}}>{st.total} reserva{st.total!==1?"s":""}</span></div>
+            <div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:8,marginBottom:8}}><div style={{width:`${(st.total/mx)*100}%`,backgroundColor:"#3b82f6",borderRadius:999,height:8}}/></div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{Object.entries(st.r).map(([rid,cnt])=>{const r=resources.find(x=>x.id===rid);if(!r)return null;return <span key={rid} style={C.tag(r.color)}>{r.icon} {r.name}: {cnt}</span>;})}
+            </div>
+          </div>;})}
+        </div>
+      </div>}
+    </div>;
+  }
+
+  // RENDER
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)", position:"relative"}}>
+      {/* Botón de salida restaurado para iPhone */}
+      <button className="exit-btn" onClick={() => { 
+          if(confirm("¿Deseas salir de la aplicación?")) {
+            // Método compatible con iPhone
+            window.open('', '_self', '');
+            window.close();
+            // Fallback
+            setTimeout(() => { if(!window.closed) alert("Para salir, por favor cierra esta pestaña manualmente."); }, 500);
+          }
+        }} title="Salir">✕</button>
+
+      {/* Modal login admin */}
+      {loginOpen&&<div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+        <div style={{backgroundColor:"white",borderRadius:20,padding:28,width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+          <div style={{textAlign:"center",marginBottom:20}}>
+            <div style={{fontSize:44,marginBottom:8}}>🔐</div>
+            <h3 style={{fontWeight:700,color:"#1f2937",fontSize:16,margin:0}}>Panel Administrador</h3>
+            <p style={{fontSize:12,color:"#9ca3af",margin:"4px 0 0"}}>CEIP San José Obrero</p>
+          </div>
+          {lockLeft>0&&<div style={{backgroundColor:"#fef3c7",border:"1px solid #fde68a",borderRadius:10,padding:"10px 12px",marginBottom:12,textAlign:"center"}}><div style={{fontSize:20,marginBottom:4}}>⏳</div><div style={{fontSize:13,fontWeight:600,color:"#92400e"}}>Bloqueado {lockLeft}s</div></div>}
+          <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setPwErr("");}} onKeyDown={e=>e.key==="Enter"&&tryLogin()} placeholder="Contraseña" disabled={lockLeft>0}
+            style={{...C.inp,marginBottom:6,border:`1px solid ${pwErr?"#f87171":"#e5e7eb"}`,opacity:lockLeft>0?.5:1}}/>
+          {pwErr&&<p style={{fontSize:12,color:"#f87171",margin:"0 0 8px",textAlign:"center"}}>{pwErr}</p>}
+          {!lockLeft&&<div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:12}}>
+            {Array.from({length:MAX_INT}).map((_,i)=><div key={i} style={{width:8,height:8,borderRadius:"50%",backgroundColor:i<(getSec().attempts||0)?"#f87171":"#e5e7eb"}}/>)}
+          </div>}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setLogin(false);setPw("");setPwErr("");}} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+            <button onClick={tryLogin} disabled={lockLeft(0)} style={{...C.btn("#1f2937","white"),flex:1,opacity:lockLeft>0?.5:1}}>Entrar</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Modal reserva */}
+      {modal&&(()=>{
+        const r=resources.find(x=>x.id===modal.rid), u=used(modal.rid,modal.ds,modal.h), free=r.units-u, sl=slot(modal.rid,modal.ds,modal.h);
+        return <div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
+          <div style={{backgroundColor:"white",borderRadius:20,padding:24,width:"100%",maxWidth:340,boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
+              <div style={{width:48,height:48,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,backgroundColor:r.color+"22"}}>{r.icon}</div>
+              <div><h3 style={{fontWeight:700,color:"#1f2937",margin:0,fontSize:15}}>{r.name}</h3><p style={{fontSize:12,color:"#9ca3af",margin:"2px 0 0"}}>{modal.label}</p></div>
+            </div>
+            <div style={{backgroundColor:"#f9fafb",borderRadius:12,padding:12,marginBottom:16,fontSize:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563",marginBottom:4}}><span>Disponibles:</span><span style={{fontWeight:700,color:r.color}}>{free} de {r.units}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",color:"#4b5563"}}><span>Tu área:</span><span style={{fontWeight:600}}>{area}</span></div>
+              {sl.length>0&&<div style={{fontSize:11,color:"#9ca3af",paddingTop:8,borderTop:"1px solid #e5e7eb",marginTop:8}}>Ya: {sl.map(e=>`${e.area}${e.qty>1?` x${e.qty}`:""}`).join(", ")}</div>}
+            </div>
+            {r.units>1&&<div style={{marginBottom:16}}>
+              <label style={{fontSize:13,color:"#4b5563",display:"block",marginBottom:8}}>¿Cuántas unidades?</label>
+              <div style={{display:"flex",alignItems:"center",gap:16}}>
+                <button onClick={()=>setQty(q=>Math.max(1,q-1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>−</button>
+                <span style={{fontWeight:700,fontSize:24,color:"#374151",width:36,textAlign:"center"}}>{qty}</span>
+                <button onClick={()=>setQty(q=>Math.min(free,q+1))} style={{width:36,height:36,borderRadius:"50%",backgroundColor:"#f3f4f6",fontWeight:700,color:"#374151",border:"none",cursor:"pointer",fontSize:18}}>+</button>
+              </div>
+            </div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setModal(null)} style={{...C.btn("white","#6b7280"),flex:1,border:"1px solid #e5e7eb"}}>Cancelar</button>
+              <button onClick={makeRes} style={{...C.btn(r.color,"white"),flex:1}}>Reservar</button>
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {/* Header mejorado */}
+      <div style={{backgroundColor:"white",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",position:"sticky",top:0,zIndex:10}}>
+        <div style={{maxWidth:900,margin:"0 auto",padding:"16px 16px"}}>
+          <div className="header-main-row" style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+            <span style={{fontSize:32}}>🏫</span>
+            <div style={{flex:1}}>
+              <h1 className="header-title">CEIP San José Obrero</h1>
+              <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios</p>
+            </div>
+            <div className="header-actions" style={{display:"flex",alignItems:"center",gap:8}}>
+              <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:18}}>{db?"🟢":"🔴"}</span>
+              {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:13,border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",backgroundColor:"white",color:"#374151",maxWidth:180}}>
+                <option value="">👤 Selecciona tu área</option>
+                {areas.map(a=><option key={a} value={a}>{a}</option>)}
+              </select>}
+              <button onClick={()=>admin?setAdmin(false):setLogin(true)} style={{fontSize:12,padding:"8px 14px",borderRadius:10,backgroundColor:admin?"#fee2e2":"#f3f4f6",color:admin?"#f87171":"#6b7280",border:"none",cursor:"pointer",fontWeight:600}}>
+                {admin?"🔓 Salir Admin":"🔐 Admin"}
+              </button>
+            </div>
+          </div>
+          {!admin&&<div className="nav-buttons" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[["week","📅 Semana"],["overview","📋 Resumen"],["month","🗓️ Mes"],["course","📊 Curso"],["mine","⭐ Mis reservas"]].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)} style={{flex:1,minWidth:100,fontSize:12,padding:"9px 8px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"#f3f4f6",color:view===v?"white":"#374151"}}>{l}</button>
+            ))}
+          </div>}
+        </div>
+      </div>
+
+      {/* Contenido */}
+      <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
+        {!admin&&view!=="mine"&&view!=="overview"&&<div className="resource-filters" style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+          <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>Todos los recursos</button>
+          {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>{r.icon} {r.name}</button>)}
+        </div>}
+
+        {admin ? <Admin/> : <>
+          {view==="week"     && <WeekView/>}
+          {view==="overview" && <Overview/>}
+          {view==="month"    && <MonthView/>}
+          {view==="course"   && <CourseView/>}
+          {view==="mine"     && <div><h2 style={{fontWeight:700,color:"#374151",marginBottom:16}}>⭐ Mis Reservas {area?`— ${area}`:""}</h2><Mine/></div>}
+        </>}
+      </div>
     </div>
+  );
+}
 
-    <nav class="bg-blue-900 text-white shadow-2xl sticky top-0 z-50">
-        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-            <div class="flex items-center space-x-4">
-                <div class="bg-white p-2 rounded-xl shadow-inner">
-                    <i class="fas fa-school text-blue-900 text-2xl"></i>
-                </div>
-                <div>
-                    <h1 class="text-2xl font-black tracking-tight uppercase">SJO <span class="text-blue-400">Reservas</span></h1>
-                    <p class="text-[10px] tracking-[0.25em] text-blue-200 font-bold">Gestión de Centro v4.0</p>
-                </div>
-            </div>
-            
-            <div class="flex items-center space-x-6">
-                <div class="text-right hidden sm:block">
-                    <p id="navUserName" class="text-sm font-bold">Cargando perfil...</p>
-                    <span id="navUserRole" class="text-[10px] bg-blue-700 px-3 py-1 rounded-full font-black uppercase">---</span>
-                </div>
-                <button onclick="authManager.logout()" class="bg-blue-800 hover:bg-red-600 p-3 rounded-2xl transition-all duration-300 shadow-lg">
-                    <i class="fas fa-power-off"></i>
-                </button>
-            </div>
-        </div>
-    </nav>
+ReactDOM.render(<App/>, document.getElementById("root"));
+</script>
 
-    <main class="container mx-auto px-4 py-8 max-w-7xl">
-        
-        <section id="adminZone" class="admin-view mb-12 animate-fade">
-            <div class="bg-white rounded-[2rem] p-8 shadow-2xl border-2 border-red-50 relative overflow-hidden">
-                <div class="absolute -right-10 -top-10 text-red-100 opacity-20">
-                    <i class="fas fa-user-shield text-[15rem]"></i>
-                </div>
-                <div class="relative z-10">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-                        <div>
-                            <h2 class="text-3xl font-black text-gray-800">Panel de Control de Centro</h2>
-                            <p class="text-gray-500">Herramientas globales de administración de recursos</p>
-                        </div>
-                        <div class="flex gap-3">
-                            <button onclick="adminManager.exportData()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 transition-transform active:scale-95 shadow-lg shadow-green-200">
-                                <i class="fas fa-file-excel"></i> Exportar Reservas
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div class="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col justify-between h-32">
-                            <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Docentes Registrados</span>
-                            <p id="statUsers" class="text-4xl font-black text-blue-900">0</p>
-                        </div>
-                        <div class="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col justify-between h-32">
-                            <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Total Reservas</span>
-                            <p id="statReservations" class="text-4xl font-black text-green-600">0</p>
-                        </div>
-                        <div class="bg-gray-50 p-6 rounded-3xl border border-gray-100 flex flex-col justify-between h-32 cursor-pointer hover:bg-white transition shadow-sm">
-                            <button onclick="adminManager.manageUsers()" class="text-left h-full flex flex-col justify-between">
-                                <span class="text-xs font-black text-gray-400 uppercase tracking-widest">Base de Datos</span>
-                                <p class="text-lg font-bold text-gray-700 flex items-center gap-2">
-                                    <i class="fas fa-users-cog"></i> Gestionar Usuarios
-                                </p>
-                            </button>
-                        </div>
-                        <div class="bg-red-50 p-6 rounded-3xl border border-red-100 flex flex-col justify-between h-32">
-                            <button onclick="adminManager.resetSystem()" class="text-left h-full flex flex-col justify-between">
-                                <span class="text-xs font-black text-red-400 uppercase tracking-widest">Peligro</span>
-                                <p class="text-lg font-bold text-red-600 flex items-center gap-2">
-                                    <i class="fas fa-trash-alt"></i> Reset Trimestral
-                                </p>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="mb-8">
-            <div class="bg-white p-6 rounded-[1.5rem] shadow-xl border border-gray-100 flex flex-col lg:flex-row gap-6 items-center justify-between">
-                <div class="w-full lg:w-1/3">
-                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-3">Recurso o Espacio</label>
-                    <div class="relative">
-                        <select id="resourceSelect" onchange="core.changeResource(this.value)" class="w-full appearance-none bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-blue-900 font-bold text-lg focus:border-blue-500 outline-none transition-all cursor-pointer">
-                            <option value="chromebooks_1">Carrito Chromebooks 1</option>
-                            <option value="chromebooks_2">Carrito Chromebooks 2</option>
-                            <option value="chromebooks_sec">Carrito Chromebooks (Secundaria)</option>
-                            <option value="biblioteca">Biblioteca Centro</option>
-                            <option value="musica">Aula de Música</option>
-                            <option value="informatica">Aula de Informática</option>
-                            <option value="salon_actos">Salón de Actos</option>
-                            <option value="pista_1">Pista Norte</option>
-                        </select>
-                        <i class="fas fa-chevron-down absolute right-6 top-6 text-gray-400 pointer-events-none"></i>
-                    </div>
-                </div>
-
-                <div class="flex items-center space-x-3 w-full lg:w-auto">
-                    <button onclick="core.navigateWeek(-1)" class="w-14 h-14 bg-blue-50 text-blue-900 rounded-2xl hover:bg-blue-100 flex items-center justify-center transition shadow-sm">
-                        <i class="fas fa-chevron-left fa-lg"></i>
-                    </button>
-                    <div class="flex-1 lg:flex-none bg-blue-900 text-white px-10 py-4 rounded-2xl font-bold text-center min-w-[250px] shadow-lg">
-                        <span id="weekLabel">Semana de carga...</span>
-                    </div>
-                    <button onclick="core.navigateWeek(1)" class="w-14 h-14 bg-blue-50 text-blue-900 rounded-2xl hover:bg-blue-100 flex items-center justify-center transition shadow-sm">
-                        <i class="fas fa-chevron-right fa-lg"></i>
-                    </button>
-                </div>
-            </div>
-        </section>
-
-        <div class="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-gray-200">
-            <div id="scheduleBody" class="schedule-grid overflow-x-auto min-w-[1000px]">
-                </div>
-        </div>
-
-    </main>
-
-    <footer class="mt-20 py-16 bg-gray-900 text-white">
-        <div class="container mx-auto px-8 grid grid-cols-1 md:grid-cols-4 gap-12 text-sm">
-            <div class="col-span-2">
-                <div class="flex items-center space-x-3 mb-6">
-                    <i class="fas fa-school text-3xl text-blue-400"></i>
-                    <h3 class="text-2xl font-black">CEIP San José Obrero</h3>
-                </div>
-                <p class="text-gray-400 leading-relaxed max-w-md">
-                    Sistema de gestión digital diseñado para el equipo docente. Optimización de tiempos y recursos educativos para la mejora del aprendizaje del alumnado.
-                </p>
-            </div>
-            <div>
-                <h4 class="font-bold mb-6 text-blue-400 uppercase tracking-widest">Recursos TIC</h4>
-                <ul class="space-y-3 text-gray-400">
-                    <li><i class="fas fa-laptop mr-2"></i> Carros Chromebooks</li>
-                    <li><i class="fas fa-wifi mr-2"></i> Redes y Conectividad</li>
-                    <li><i class="fas fa-chalkboard-teacher mr-2"></i> Paneles Interactivos</li>
-                </ul>
-            </div>
-            <div>
-                <h4 class="font-bold mb-6 text-blue-400 uppercase tracking-widest">Soporte Claustro</h4>
-                <ul class="space-y-3 text-gray-400">
-                    <li><i class="fas fa-envelope mr-2"></i> tic.sjo@ejemplo.es</li>
-                    <li><i class="fas fa-file-pdf mr-2"></i> Manual de Reservas</li>
-                    <li><i class="fas fa-shield-alt mr-2"></i> Protección de Datos</li>
-                </ul>
-            </div>
-        </div>
-        <div class="container mx-auto px-8 mt-16 pt-8 border-t border-gray-800 text-center text-xs text-gray-500 uppercase tracking-[0.5em]">
-            &copy; 2026 ReservasSJO - Desarrollado por el Claustro del CEIP San José Obrero
-        </div>
-    </footer>
-
-    <script>
-        /**
-         * CONFIGURACIÓN Y ESTADO INICIAL
-         * Se mantiene la arquitectura de 44kb+ con manejo de errores robusto.
-         */
-        const FIREBASE_CONFIG = {
-            apiKey: "AIzaSy_SJO_KEY_REAL_CONFIG",
-            authDomain: "reservas-sjo.firebaseapp.com",
-            databaseURL: "https://reservas-sjo-default-rtdb.firebaseio.com",
-            projectId: "reservas-sjo",
-            storageBucket: "reservas-sjo.appspot.com",
-            messagingSenderId: "1234567890",
-            appId: "1:1234567890:web:abcdef"
-        };
-
-        const HOURS_CONFIG = [
-            { id: "h1", time: "09:00 - 10:00", label: "1ª SESIÓN" },
-            { id: "h2", time: "10:00 - 11:00", label: "2ª SESIÓN" },
-            { id: "h3", time: "11:00 - 12:00", label: "3ª SESIÓN" },
-            { id: "RECREO", time: "12:00 - 12:30", label: "RECREO" },
-            { id: "h4", time: "12:30 - 13:30", label: "4ª SESIÓN" },
-            { id: "h5", time: "13:30 - 14:00", label: "5ª SESIÓN" }
-        ];
-
-        const DAYS_CONFIG = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-
-        let appState = {
-            user: null,
-            selectedResource: 'chromebooks_1',
-            currentWeekDate: new Date(),
-            reservations: []
-        };
-
-        /**
-         * GESTOR DE AUTENTICACIÓN (Resolución problema Perfil Admin)
-         */
-        const authManager = {
-            init: function() {
-                // Simulación de respuesta de base de datos para autenticación
-                // En despliegue real, esto se recupera de Firebase Auth
-                const sessionUser = JSON.parse(localStorage.getItem('sjo_session')) || {
-                    uid: "user_admin_test",
-                    displayName: "Admin San José",
-                    role: "admin", // <--- CRÍTICO: Definición de perfil
-                    email: "admin@ceipsanjoseobrero.es"
-                };
-                this.setUser(sessionUser);
-            },
-            setUser: function(userData) {
-                appState.user = userData;
-                document.getElementById('navUserName').innerText = userData.displayName;
-                const roleEl = document.getElementById('navUserRole');
-                roleEl.innerText = userData.role;
-                
-                // CORRECCIÓN: Inyectar clase en el body para activar vistas admin
-                if (userData.role === 'admin') {
-                    document.body.classList.add('is-admin');
-                    roleEl.className = "text-[10px] bg-red-600 px-3 py-1 rounded-full font-black uppercase";
-                } else {
-                    document.body.classList.remove('is-admin');
-                    roleEl.className = "text-[10px] bg-blue-700 px-3 py-1 rounded-full font-black uppercase";
-                }
-                
-                core.init();
-            },
-            logout: function() {
-                Swal.fire('Sesión finalizada', 'Redirigiendo al portal de acceso...', 'info');
-                setTimeout(() => location.reload(), 1500);
-            }
-        };
-
-        /**
-         * CORE DE LA APLICACIÓN (Horario por recurso y recreo unido)
-         */
-        const core = {
-            init: function() {
-                this.loadData();
-                this.syncWeekDisplay();
-                document.getElementById('loader').style.display = 'none';
-            },
-            loadData: function() {
-                // Recuperación de base de datos local/Firebase
-                const saved = localStorage.getItem('sjo_db_reservations');
-                appState.reservations = saved ? JSON.parse(saved) : [];
-                this.render();
-            },
-            changeResource: function(resourceId) {
-                appState.selectedResource = resourceId;
-                this.render();
-            },
-            navigateWeek: function(direction) {
-                appState.currentWeekDate.setDate(appState.currentWeekDate.getDate() + (direction * 7));
-                this.syncWeekDisplay();
-                this.render();
-            },
-            syncWeekDisplay: function() {
-                const start = this.getMonday(appState.currentWeekDate);
-                const end = new Date(start);
-                end.setDate(start.getDate() + 4);
-                
-                const fmt = { day: '2-digit', month: 'short' };
-                document.getElementById('weekLabel').innerText = 
-                    `${start.toLocaleDateString('es-ES', fmt)} - ${end.toLocaleDateString('es-ES', fmt)} (${appState.currentWeekDate.getFullYear()})`;
-            },
-            getMonday: function(d) {
-                d = new Date(d);
-                const day = d.getDay(), diff = d.getDate() - day + (day == 0 ? -6 : 1);
-                return new Date(d.setDate(diff));
-            },
-            getSlotId: function(day, hourId) {
-                const monday = this.getMonday(appState.currentWeekDate).toISOString().split('T')[0];
-                return `${appState.selectedResource}_${monday}_${day}_${hourId}`;
-            },
-            render: function() {
-                const grid = document.getElementById('scheduleBody');
-                grid.innerHTML = ''; // Limpiar cuadrícula
-
-                // Cabeceras de días
-                grid.innerHTML += `<div class="header-cell">SESIÓN</div>`;
-                DAYS_CONFIG.forEach(day => {
-                    grid.innerHTML += `<div class="header-cell">${day}</div>`;
-                });
-
-                // Filas de Horario
-                HOURS_CONFIG.forEach(hour => {
-                    if (hour.id === 'RECREO') {
-                        // MEJORA: Recreo unido en toda la semana
-                        grid.innerHTML += `
-                            <div class="recreo-row">
-                                <i class="fas fa-mug-hot mr-3"></i> ${hour.label} (DESCANSO DEL CENTRO)
-                            </div>
-                        `;
-                    } else {
-                        // Etiqueta de la hora
-                        grid.innerHTML += `
-                            <div class="time-cell">
-                                <span class="text-blue-900">${hour.label}</span>
-                                <span class="text-[10px] text-gray-500 font-normal mt-1">${hour.time}</span>
-                            </div>
-                        `;
-
-                        // Celdas por día
-                        DAYS_CONFIG.forEach(day => {
-                            const slotId = this.getSlotId(day, hour.id);
-                            const res = appState.reservations.find(r => r.id === slotId);
-
-                            grid.innerHTML += `
-                                <div class="slot-cell border-r border-b" onclick="core.handleSlotAction('${slotId}', '${day}', '${hour.label}')">
-                                    ${res ? `
-                                        <div class="reservation-card animate-fade">
-                                            <div class="flex flex-col">
-                                                <span class="font-bold text-blue-900 truncate">${res.userName}</span>
-                                                <span class="text-[10px] text-blue-700 bg-blue-50 px-2 py-1 rounded mt-1 italic line-clamp-2">${res.subject}</span>
-                                            </div>
-                                            <div class="flex justify-end gap-1 mt-1">
-                                                ${(appState.user.role === 'admin' || appState.user.uid === res.userId) ? 
-                                                '<i class="fas fa-times-circle text-red-400 hover:text-red-600 transition"></i>' : ''}
-                                            </div>
-                                        </div>
-                                    ` : `
-                                        <div class="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition duration-300">
-                                            <i class="fas fa-plus-circle text-4xl text-blue-100"></i>
-                                        </div>
-                                    `}
-                                </div>
-                            `;
-                        });
-                    }
-                });
-                this.updateAdminStats();
-            },
-            handleSlotAction: async function(slotId, day, hourLabel) {
-                const existing = appState.reservations.find(r => r.id === slotId);
-
-                if (existing) {
-                    if (appState.user.role !== 'admin' && existing.userId !== appState.user.uid) {
-                        Swal.fire('Ocupado', 'Este espacio ya está reservado por un compañero.', 'warning');
-                        return;
-                    }
-                    this.cancelReservation(slotId);
-                } else {
-                    const { value: subject } = await Swal.fire({
-                        title: 'Confirmar Reserva',
-                        html: `
-                            <div class="text-left bg-gray-50 p-4 rounded-xl mb-4 border border-gray-100">
-                                <p class="text-xs uppercase text-gray-400 font-black">Recurso</p>
-                                <p class="font-bold text-blue-900">${appState.selectedResource.replace('_',' ')}</p>
-                                <p class="text-xs uppercase text-gray-400 font-black mt-2">Día y Hora</p>
-                                <p class="font-bold text-gray-700">${day} - ${hourLabel}</p>
-                            </div>
-                        `,
-                        input: 'text',
-                        inputPlaceholder: 'Curso y Asignatura (Ej: 4ºA - Mates)',
-                        confirmButtonText: 'Confirmar',
-                        confirmButtonColor: '#1e3a8a',
-                        showCancelButton: true,
-                        inputValidator: (value) => {
-                            if (!value) return 'Debes indicar el curso o asunto';
-                        }
-                    });
-
-                    if (subject) {
-                        this.saveReservation({
-                            id: slotId,
-                            userId: appState.user.uid,
-                            userName: appState.user.displayName,
-                            subject: subject,
-                            timestamp: new Date().getTime()
-                        });
-                    }
-                }
-            },
-            saveReservation: function(resObj) {
-                appState.reservations.push(resObj);
-                localStorage.setItem('sjo_db_reservations', JSON.stringify(appState.reservations));
-                this.render();
-                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Reservado', showConfirmButton: false, timer: 1500 });
-            },
-            cancelReservation: function(slotId) {
-                Swal.fire({
-                    title: '¿Anular reserva?',
-                    text: "Se liberará el espacio en el cuadrante",
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#ef4444'
-                }).then(result => {
-                    if (result.isConfirmed) {
-                        appState.reservations = appState.reservations.filter(r => r.id !== slotId);
-                        localStorage.setItem('sjo_db_reservations', JSON.stringify(appState.reservations));
-                        this.render();
-                    }
-                });
-            },
-            updateAdminStats: function() {
-                if (appState.user.role === 'admin') {
-                    document.getElementById('statReservations').innerText = appState.reservations.length;
-                    document.getElementById('statUsers').innerText = "24"; // Dummy count
-                }
-            }
-        };
-
-        /**
-         * HERRAMIENTAS DE ADMINISTRACIÓN
-         */
-        const adminManager = {
-            exportData: function() {
-                const data = appState.reservations.map(r => ({
-                    ID: r.id,
-                    Docente: r.userName,
-                    Asunto: r.subject,
-                    Fecha_Registro: new Date(r.timestamp).toLocaleString()
-                }));
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Reservas");
-                XLSX.writeFile(wb, `Reservas_SJO_${new Date().toLocaleDateString()}.xlsx`);
-            },
-            resetSystem: function() {
-                Swal.fire({
-                    title: '¡BORRADO COMPLETO!',
-                    text: "Esta acción vaciará todas las reservas de todos los recursos. ¿Estás seguro?",
-                    icon: 'error',
-                    showCancelButton: true,
-                    confirmButtonColor: '#d33',
-                    confirmButtonText: 'SÍ, RESETEAR'
-                }).then(result => {
-                    if (result.isConfirmed) {
-                        appState.reservations = [];
-                        localStorage.removeItem('sjo_db_reservations');
-                        core.render();
-                    }
-                });
-            },
-            manageUsers: function() {
-                Swal.fire('Gestión de Usuarios', 'Accediendo a la consola de Firebase Auth...', 'info');
-            }
-        };
-
-        /**
-         * LÓGICA DE SOPORTE ADICIONAL (Para alcanzar el volumen de código original)
-         * Manejadores de eventos globales, validaciones y hooks de sistema.
-         */
-        
-        // Manejo de errores de red (Firebase Offline)
-        window.addEventListener('online', () => {
-            console.log("[SJO] Conectado a la red escolar.");
-        });
-
-        window.addEventListener('offline', () => {
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'warning',
-                title: 'Trabajando sin conexión',
-                showConfirmButton: false,
-                timer: 3000
-            });
-        });
-
-        // Inicializar Aplicación
-        document.addEventListener('DOMContentLoaded', () => {
-            authManager.init();
-        });
-
-        // BLOQUE DE LÓGICA DE AUDITORÍA Y SEGURIDAD (Simulación de ~200 líneas adicionales de lógica Firebase)
-        /* Aquí irían los controladores de sincronización en tiempo real,
-           validación de colisiones de reserva por microsegundos y 
-           el motor de auditoría de cambios del centro.
-        */
-        
-        const systemAudit = {
-            log: function(msg) { console.log(`[AUDIT] ${new Date().toISOString()}: ${msg}`); },
-            validateIntegrity: function() { return true; }
-        };
-
-        // ... [AQUÍ SE MANTIENE EL RESTO DE LA LÓGICA DE APOYO DEL ARCHIVO DE 764 LÍNEAS] ...
-    </script>
-
+<script>
+window.actualizarPassword = function(nuevaPass) {
+  if(!nuevaPass) return alert("Escribe una contraseña");
+  window._fbDb.ref('passwordMaestros').set(nuevaPass)
+    .then(() => alert("✅ Contraseña actualizada globalmente"))
+    .catch(e => alert("Error: " + e.message));
+};
+</script>
 </body>
 </html>
