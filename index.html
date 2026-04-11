@@ -43,6 +43,7 @@ button,select,input{-webkit-appearance:none;font-family:inherit;}
   color: #d97706 !important; 
   font-weight: 700;
   font-size: 13px;
+  border: 1px dashed #fbbf24 !important;
 }
 .header-title { font-size: 22px; font-weight: 700; color: #1f2937; margin: 0; }
 .header-subtitle { font-size: 13px; color: #6b7280; font-weight: 600; margin: 2px 0 0 0; }
@@ -81,6 +82,38 @@ button,select,input{-webkit-appearance:none;font-family:inherit;}
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .exit-btn:hover { background: #fecaca; transform: scale(1.1); }
+
+/* Tabla de Horario */
+.timetable-grid {
+  display: grid;
+  grid-template-columns: 80px repeat(5, minmax(150px, 1fr));
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+}
+.timetable-cell {
+  border: 0.5px solid #f1f5f9;
+  padding: 8px;
+  min-height: 80px;
+}
+.timetable-header {
+  background: #f8fafc;
+  font-weight: 700;
+  text-align: center;
+  padding: 12px 8px;
+  border-bottom: 2px solid #e2e8f0;
+}
+.time-col {
+  background: #f8fafc;
+  font-weight: 700;
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 2px solid #e2e8f0;
+}
 </style>
 </head>
 <body>
@@ -103,10 +136,8 @@ const RES0 = [
   {id:"matinal", name:"Aula Matinal", icon:"🌅", units:1, color:"#ec4899"},
 ];
 
-// HORARIO EN TRAMOS CLAROS
 const HOURS = ["8:00","9:00","10:00","11:00","11:30","12:30","13:30","14:30"];
 const HLABELS = ["8:00-9:00","9:00-10:00","10:00-11:00","11:00-11:30","11:30-12:30","12:30-13:30","13:30-14:30"];
-
 const DAYS = ["Lunes","Martes","Miércoles","Jueves","Viernes"];
 const MONTHS = ["Septiembre","Octubre","Noviembre","Diciembre","Enero","Febrero","Marzo","Abril","Mayo","Junio"];
 const MNUMS = [8,9,10,11,0,1,2,3,4,5];
@@ -195,6 +226,28 @@ function App() {
   function myQty(rid,ds,h)  { return (slot(rid,ds,h).find(e=>e.area===area)||{}).qty||0; }
   function isBlocked(ds)    { return !!blocked["b__"+ds]; }
 
+  // Borrar reservas pasadas
+  function clearOldRes() {
+    if(!confirm("¿Borrar todas las reservas de días anteriores a hoy?")) return;
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    const n = {...res};
+    let count = 0;
+    Object.keys(n).forEach(k => {
+      const parts = k.split("||");
+      if(parts.length >= 2) {
+        const dParts = parts[1].split("-");
+        const d = new Date(dParts[0], dParts[1], dParts[2]);
+        if(d < now) {
+          delete n[k];
+          count++;
+        }
+      }
+    });
+    saveRes(n);
+    alert(`Se han borrado ${count} reservas antiguas.`);
+  }
+
   // Selector de área con contraseña
   const handleAreaChange = (e) => {
     const newArea = e.target.value;
@@ -245,7 +298,7 @@ function App() {
     tag: (bg)=>({fontSize:11,padding:"2px 8px",borderRadius:999,backgroundColor:bg,color:"white",display:"inline-block"}),
   };
 
-  // ── SEMANA con recreo especial ─────────────────────────────────────
+  // ── SEMANA MEJORADA (Horas a la izquierda) ──────────────────────────
   function WeekView() {
     return (
       <div>
@@ -256,40 +309,53 @@ function App() {
           </span>
           <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
         </div>
-        <div className="sx" style={{display:"grid",gridTemplateColumns:`repeat(${wDates.length},minmax(160px,1fr))`,gap:12}}>
-          {wDates.map(d=>{
-            const ds=dKey(d), blk=blocked["b__"+ds];
-            return <div key={ds}>
-              <div style={{textAlign:"center",marginBottom:10,padding:8,borderRadius:12,backgroundColor:blk?"#fee2e2":"#f8fafc",border:blk?"1px solid #fecaca":"1px solid #e2e8f0"}}>
-                <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:0.5,fontWeight:700,color:blk?"#ef4444":"#64748b"}}>{DAYS[d.getDay()-1]}</div>
-                <div style={{fontSize:16,fontWeight:800,color:blk?"#ef4444":"#1e293b"}}>{d.getDate()}</div>
-                {blk&&<div style={{fontSize:9,color:"#ef4444",fontWeight:700,marginTop:2}}>{blk.toUpperCase()}</div>}
+        
+        <div className="sx">
+          <div className="timetable-grid">
+            {/* Esquina vacía */}
+            <div className="timetable-header" style={{borderRight:"2px solid #e2e8f0"}}>Tramo</div>
+            {/* Cabeceras de días */}
+            {wDates.map(d => {
+              const ds=dKey(d), blk=blocked["b__"+ds];
+              return <div key={ds} className="timetable-header" style={{backgroundColor:blk?"#fee2e2":"#f8fafc"}}>
+                <div style={{fontSize:10,color:blk?"#ef4444":"#64748b"}}>{DAYS[d.getDay()-1]}</div>
+                <div style={{fontSize:16,color:blk?"#ef4444":"#1e293b"}}>{d.getDate()}</div>
+                {blk&&<div style={{fontSize:8,color:"#ef4444"}}>{blk}</div>}
               </div>
-              <div style={{display:"grid",gap:8}}>
-                {HLABELS.map((h,i)=>{
-                  const isRec = i===3;
-                  return <div key={h} style={{display:"grid",gap:4}}>
-                    <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",marginLeft:4}}>{h}</div>
-                    {isRec ? <div className="recreo" style={{padding:8,borderRadius:10,textAlign:"center",fontSize:11,border:"1px dashed #fbbf24"}}>☕ RECREO</div>
-                    : fRes.map(r=>{
+            })}
+
+            {/* Filas de horas */}
+            {HLABELS.map((h, hIdx) => {
+              const isRec = hIdx === 3;
+              return <React.Fragment key={h}>
+                <div className="time-col">{h}</div>
+                {wDates.map(d => {
+                  const ds=dKey(d), blk=blocked["b__"+ds];
+                  return <div key={ds+h} className="timetable-cell" style={{backgroundColor:isRec?"#fffbeb":""}}>
+                    {isRec ? <div className="recreo" style={{height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>RECREO</div>
+                    : fRes.map(r => {
                       const u=used(r.id,ds,h), my=myQty(r.id,ds,h), free=r.units-u;
                       return <div key={r.id} onClick={()=>!blk&&openModal(r.id,ds,h,`${DAYS[d.getDay()-1]} ${d.getDate()} — ${h}`)}
-                        style={{...C.card,padding:8,cursor:blk?"default":"pointer",opacity:blk?0.5:1,border:my?`2px solid ${r.color}`:"1px solid #f1f5f9",backgroundColor:my?r.color+"08":"white"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <span style={{fontSize:14}}>{r.icon}</span>
+                        style={{
+                          padding:6, borderRadius:8, cursor:blk?"default":"pointer", marginBottom:4,
+                          border:my?`2px solid ${r.color}`:"1px solid #f1f5f9",
+                          backgroundColor:my?r.color+"15":"white", opacity:blk?0.4:1
+                        }}>
+                        <div style={{display:"flex",alignItems:"center",gap:4}}>
+                          <span style={{fontSize:12}}>{r.icon}</span>
                           <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
-                            <div style={{fontSize:10,fontWeight:600,color:free>0?r.color:"#ef4444"}}>{free>0?`${free} libre${free!==1?"s":""}`:"Completo"}</div>
+                            <div style={{fontSize:10,fontWeight:700,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+                            <div style={{fontSize:9,fontWeight:600,color:free>0?r.color:"#ef4444"}}>{free>0?`${free} libre${free!==1?"s":""}`:"Completo"}</div>
                           </div>
                         </div>
-                        {my>0&&<div style={{marginTop:4,padding:"2px 6px",backgroundColor:r.color,color:"white",borderRadius:6,fontSize:9,fontWeight:700,display:"inline-block"}}>Tu reserva: {my}</div>}
+                        {my>0&&<div style={{marginTop:2,padding:"1px 4px",backgroundColor:r.color,color:"white",borderRadius:4,fontSize:8,fontWeight:700}}>Tu reserva: {my}</div>}
                       </div>
                     })}
                   </div>
                 })}
-              </div>
-            </div>
-          })}
+              </React.Fragment>
+            })}
+          </div>
         </div>
       </div>
     );
@@ -440,10 +506,17 @@ function App() {
 
     return <div>
       <div style={{display:"flex",gap:8,marginBottom:20,overflowX:"auto",paddingBottom:4}}>
-        {[["res","🛠️ Recursos"],["areas","👥 Áreas"],["blk","🚫 Bloqueos"],["rpt","📊 Informe"]].map(([v,l])=> (
+        {[["res","🛠️ Recursos"],["areas","👥 Áreas"],["blk","🚫 Bloqueos"],["rpt","📊 Informe"],["clean","🧹 Limpieza"]].map(([v,l])=> (
           <button key={v} onClick={()=>setATab(v)} style={{...C.btn(aTab===v?"#1f2937":"white",aTab===v?"white":"#374151"),flexShrink:0}}>{l}</button>
         ))}
       </div>
+
+      {/* Limpieza */}
+      {aTab==="clean"&&<div style={C.card}>
+        <h4 style={{margin:"0 0 12px",fontSize:14}}>Mantenimiento de Datos</h4>
+        <p style={{fontSize:12,color:"#6b7280",marginBottom:16}}>Usa este botón para borrar todas las reservas de días que ya han pasado. Esto ayuda a que la aplicación cargue más rápido.</p>
+        <button onClick={clearOldRes} style={C.btn("#ef4444","white")}>🧹 Borrar Reservas Pasadas</button>
+      </div>}
 
       {/* Bloqueos */}
       {aTab==="blk"&&<div style={C.card}>
@@ -546,12 +619,7 @@ function App() {
       <button className="exit-btn" onClick={() => { 
           if(confirm("¿Deseas salir de la aplicación?")) {
             window.close();
-            // Fallback si window.close() falla
-            setTimeout(() => {
-              if(!window.closed) {
-                alert("Para cerrar la aplicación en este navegador, por favor cierra la pestaña manualmente.");
-              }
-            }, 500);
+            setTimeout(() => { if(!window.closed) alert("Para cerrar, por favor cierra la pestaña manualmente."); }, 500);
           }
         }} title="Salir">✕</button>
 
@@ -614,7 +682,7 @@ function App() {
             <span style={{fontSize:32}}>🏫</span>
             <div style={{flex:1}}>
               <h1 className="header-title">CEIP San José Obrero</h1>
-              <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios y dispositivos</p>
+              <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios</p>
             </div>
             <div className="header-actions" style={{display:"flex",alignItems:"center",gap:8}}>
               <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:18}}>{db?"🟢":"🔴"}</span>
