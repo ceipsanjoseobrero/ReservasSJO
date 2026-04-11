@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
 <title>CEIP San José Obrero — Reservas</title>
 
 <!-- Firebase -->
@@ -46,6 +46,40 @@ button,select,input{-webkit-appearance:none;font-family:inherit;}
 }
 .header-title { font-size: 22px; font-weight: 700; color: #1f2937; margin: 0; }
 .header-subtitle { font-size: 13px; color: #6b7280; font-weight: 600; margin: 2px 0 0 0; }
+
+/* Optimizaciones para móviles */
+@media (max-width: 600px) {
+  .header-title { font-size: 18px; }
+  .header-subtitle { font-size: 11px; }
+  .nav-buttons { gap: 4px !important; }
+  .nav-buttons button { font-size: 10px !important; padding: 8px 4px !important; min-width: 0 !important; }
+  .resource-filters { gap: 4px !important; }
+  .resource-filters button { font-size: 10px !important; padding: 6px 10px !important; }
+  .header-main-row { flex-direction: column; align-items: flex-start !important; gap: 8px !important; }
+  .header-actions { width: 100%; justify-content: space-between; }
+}
+
+/* Botón de salida */
+.exit-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  z-index: 100;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.exit-btn:hover { background: #fecaca; transform: scale(1.1); }
 </style>
 </head>
 <body>
@@ -217,288 +251,228 @@ function App() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
           <span style={{fontWeight:600,color:"#374151",fontSize:13,textAlign:"center"}}>
-            {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}
+            {wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short"})}
           </span>
           <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
         </div>
-        {fRes.map(r=>(
-          <div key={r.id} style={{marginBottom:24,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}>
-              <span style={{fontSize:20}}>{r.icon}</span>
-              <span style={{fontWeight:700,color:"white"}}>{r.name}</span>
-              <span style={{marginLeft:"auto",color:"white",fontSize:11,opacity:.85}}>{r.units} {r.units===1?"unidad":"unidades"}</span>
-            </div>
-            <div className="sx" style={{backgroundColor:"white"}}>
-              <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
-                <thead>
-                  <tr style={{backgroundColor:"#f9fafb"}}>
-                    <th style={{padding:"8px 12px",textAlign:"left",color:"#9ca3af",fontWeight:500,width:110}}>Tramo Horario</th>
-                    {wDates.map((d,i)=>(
-                      <th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:82}}>
-                        <div>{DAYS[i]}</div>
-                        <div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>
-                        {isBlocked(dKey(d))&&<div style={{color:"#fb923c",fontSize:10}}>🚫</div>}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {HLABELS.map((hl,hi)=>{
-                    const h = HOURS[hi];
-                    const isRecreo = hl === "11:00-11:30";
-                    return (
-                      <tr key={h} style={{borderTop:"1px solid #f3f4f6", backgroundColor: isRecreo ? "#fffbeb" : "transparent"}}>
-                        <td style={{padding:"10px 12px",color: isRecreo ? "#d97706" : "#374151",fontWeight: isRecreo ? 700 : 600, fontSize: isRecreo ? "13px" : "12px"}}>
-                          {isRecreo ? "☕ RECREO" : hl}
-                        </td>
-                        {wDates.map((d,di)=>{
-                          const ds=dKey(d), blk=isBlocked(ds), u=used(r.id,ds,h), free=r.units-u, mine=myQty(r.id,ds,h)>0, sl=slot(r.id,ds,h);
-                          if(blk || isRecreo) return <td key={di} style={{padding:4}}><span style={{display:"block",textAlign:"center",borderRadius:8,padding:"8px 6px",backgroundColor:"#fef3c7",color:"#d97706",fontSize:12}}>☕ Recreo</span></td>;
-                          return (
-                            <td key={di} style={{padding:4,textAlign:"center"}}>
-                              {mine
-                                ? <button onClick={()=>cancelRes(r.id,ds,h)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color,color:"white",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>✓ {area.split(" ")[0]}</button>
-                                : free===0
-                                  ? <div style={{borderRadius:8,padding:"8px 6px",backgroundColor:"#fee2e2",color:"#f87171",fontSize:11}}>{sl.map(e=>e.area).join(", ")}</div>
-                                  : u>0
-                                    ? <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:"#ffedd5",color:"#ea580c",fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>{free} libres</button>
-                                    : <button onClick={()=>openModal(r.id,ds,h,`${DAYS[di]} ${d.getDate()}/${d.getMonth()+1} — ${hl}`)} style={{width:"100%",borderRadius:8,padding:"8px 6px",backgroundColor:r.color+"22",color:r.color,fontSize:12,fontWeight:600,border:"none",cursor:"pointer"}}>Libre</button>
-                              }
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  // ── RESUMEN ───────────────────────────────────────────────────────
-  function Overview() {
-    return (
-      <div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <button onClick={()=>setWOff(w=>w-1)} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
-          <span style={{fontWeight:600,color:"#374151",fontSize:13}}>{wDates[0].toLocaleDateString("es-ES",{day:"numeric",month:"short"})} – {wDates[4].toLocaleDateString("es-ES",{day:"numeric",month:"short",year:"numeric"})}</span>
-          <button onClick={()=>setWOff(w=>w+1)} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
-        </div>
-        <div style={{...C.card,padding:0,overflow:"hidden",marginBottom:20}}>
-          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>📋 Resumen semanal</span></div>
-          <div className="sx">
-            <table style={{width:"100%",fontSize:11,borderCollapse:"collapse"}}>
-              <thead><tr style={{backgroundColor:"#f9fafb"}}>
-                <th style={{padding:"8px 10px",textAlign:"left",color:"#9ca3af",fontWeight:500}}>Recurso</th>
-                {wDates.map((d,i)=><th key={i} style={{padding:"8px 6px",textAlign:"center",color:"#374151",fontWeight:500,minWidth:65}}><div>{DAYS[i].slice(0,3)}</div><div style={{color:"#9ca3af",fontWeight:400}}>{d.getDate()}/{d.getMonth()+1}</div>{isBlocked(dKey(d))&&<div style={{color:"#fb923c"}}>🚫</div>}</th>)}
-              </tr></thead>
-              <tbody>{resources.map(r=>(
-                <tr key={r.id} style={{borderTop:"1px solid #f3f4f6"}}>
-                  <td style={{padding:"8px 10px",fontWeight:500,color:"#374151"}}><span style={{marginRight:4}}>{r.icon}</span>{r.name}</td>
-                  {wDates.map((d,di)=>{
-                    const ds=dKey(d);
-                    if(isBlocked(ds)) return <td key={di} style={{textAlign:"center",color:"#fdba74"}}>🚫</td>;
-                    const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length, pct=uS/HOURS.length;
-                    return <td key={di} style={{padding:6,textAlign:"center"}}>
-                      {uS===0?<span style={{color:"#22c55e",fontWeight:600}}>Libre</span>:uS===HOURS.length?<span style={{color:"#f87171",fontWeight:600}}>Lleno</span>:<div><div style={{width:"100%",backgroundColor:"#f3f4f6",borderRadius:999,height:6,marginBottom:3}}><div style={{width:`${pct*100}%`,backgroundColor:r.color,borderRadius:999,height:6}}/></div><span style={{color:r.color,fontWeight:600}}>{HOURS.length-uS}lib.</span>{mS>0&&<span style={{backgroundColor:r.color,color:"white",fontSize:10,borderRadius:4,padding:"1px 4px",marginLeft:3}}>✓{mS}</span>}</div>}
-                    </td>;
-                  })}
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
-        </div>
-        <div style={{...C.card,padding:0,overflow:"hidden"}}>
-          <div style={{padding:"12px 16px",backgroundColor:"#374151"}}><span style={{fontWeight:700,color:"white",fontSize:13}}>⚡ Hoy — {new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"})}</span></div>
-          <div style={{padding:12,display:"grid",gap:10}}>
-            {resources.map(r=>{
-              const td=dKey(new Date()), sl=HOURS.map(h=>({h,free:r.units-used(r.id,td,h),mine:myQty(r.id,td,h)>0})), tf=sl.filter(s=>s.free>0).length;
-              return <div key={r.id} style={{borderRadius:12,border:"1px solid #f3f4f6",overflow:"hidden"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",backgroundColor:r.color+"15"}}><span style={{fontSize:18}}>{r.icon}</span><span style={{fontWeight:600,color:"#374151",fontSize:13}}>{r.name}</span><span style={{marginLeft:"auto",color:r.color,fontWeight:600,fontSize:11}}>{tf}/{HOURS.length} libres</span></div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:8}}>
-                  {sl.map(s=><div key={s.h} style={{padding:"4px 8px",borderRadius:8,fontSize:11,fontWeight:500,backgroundColor:s.mine?r.color:s.free===0?"#fee2e2":"#f3f4f6",color:s.mine?"white":s.free===0?"#f87171":"#6b7280"}}>{s.h}{s.mine?" ✓":s.free===0?" ✗":""}</div>)}
-                </div>
-              </div>;
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── MES ───────────────────────────────────────────────────────────
-  function MonthView() {
-    const {days,year,month}=monthDays(mIdx);
-    return (
-      <div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-          <button onClick={()=>setMIdx(m=>Math.max(0,m-1))} style={C.btn("white","#374151","8px 14px")}>← Ant.</button>
-          <span style={{fontWeight:600,color:"#374151"}}>{MONTHS[mIdx]} {month>=8?year:year+1}</span>
-          <button onClick={()=>setMIdx(m=>Math.min(9,m+1))} style={C.btn("white","#374151","8px 14px")}>Sig. →</button>
-        </div>
-        {fRes.map(r=>(
-          <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
-            <div style={{backgroundColor:"white",padding:12}}>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:4}}>{["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:11,color:"#9ca3af",fontWeight:500}}>{d}</div>)}</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
-                {days.map((d,i)=>{
-                  if(!d) return <div key={i}/>;
-                  const date=new Date(year,month,d), dow=date.getDay(), isWE=dow===0||dow===6;
-                  const ds=`${year}-${month}-${d}`, blk=isBlocked(ds);
-                  const uS=HOURS.filter(h=>used(r.id,ds,h)>0).length, mS=HOURS.filter(h=>myQty(r.id,ds,h)>0).length;
-                  return <div key={i} style={{borderRadius:8,padding:4,textAlign:"center",fontSize:11,backgroundColor:isWE?"#f9fafb":blk?"#fff7ed":"white"}}>
-                    <div style={{fontWeight:500,color:isWE?"#d1d5db":"#374151"}}>{d}</div>
-                    {blk&&<div style={{fontSize:9,color:"#fb923c"}}>🚫</div>}
-                    {!isWE&&!blk&&mS>0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:r.color,color:"white",fontSize:9,padding:"1px 2px"}}>✓{mS}</div>}
-                    {!isWE&&!blk&&uS>0&&mS===0&&<div style={{marginTop:2,borderRadius:4,backgroundColor:"#d1d5db",color:"white",fontSize:9,padding:"1px 2px"}}>{uS}h</div>}
-                  </div>;
+        <div className="sx" style={{display:"grid",gridTemplateColumns:`repeat(${wDates.length},minmax(160px,1fr))`,gap:12}}>
+          {wDates.map(d=>{
+            const ds=dKey(d), blk=blocked["b__"+ds];
+            return <div key={ds}>
+              <div style={{textAlign:"center",marginBottom:10,padding:8,borderRadius:12,backgroundColor:blk?"#fee2e2":"#f8fafc",border:blk?"1px solid #fecaca":"1px solid #e2e8f0"}}>
+                <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:0.5,fontWeight:700,color:blk?"#ef4444":"#64748b"}}>{DAYS[d.getDay()-1]}</div>
+                <div style={{fontSize:16,fontWeight:800,color:blk?"#ef4444":"#1e293b"}}>{d.getDate()}</div>
+                {blk&&<div style={{fontSize:9,color:"#ef4444",fontWeight:700,marginTop:2}}>{blk.toUpperCase()}</div>}
+              </div>
+              <div style={{display:"grid",gap:8}}>
+                {HLABELS.map((h,i)=>{
+                  const isRec = i===3;
+                  return <div key={h} style={{display:"grid",gap:4}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"#94a3b8",marginLeft:4}}>{h}</div>
+                    {isRec ? <div className="recreo" style={{padding:8,borderRadius:10,textAlign:"center",fontSize:11,border:"1px dashed #fbbf24"}}>☕ RECREO</div>
+                    : fRes.map(r=>{
+                      const u=used(r.id,ds,h), my=myQty(r.id,ds,h), free=r.units-u;
+                      return <div key={r.id} onClick={()=>!blk&&openModal(r.id,ds,h,`${DAYS[d.getDay()-1]} ${d.getDate()} — ${h}`)}
+                        style={{...C.card,padding:8,cursor:blk?"default":"pointer",opacity:blk?0.5:1,border:my?`2px solid ${r.color}`:"1px solid #f1f5f9",backgroundColor:my?r.color+"08":"white"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:14}}>{r.icon}</span>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:11,fontWeight:700,color:"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+                            <div style={{fontSize:10,fontWeight:600,color:free>0?r.color:"#ef4444"}}>{free>0?`${free} libre${free!==1?"s":""}`:"Completo"}</div>
+                          </div>
+                        </div>
+                        {my>0&&<div style={{marginTop:4,padding:"2px 6px",backgroundColor:r.color,color:"white",borderRadius:6,fontSize:9,fontWeight:700,display:"inline-block"}}>Tu reserva: {my}</div>}
+                      </div>
+                    })}
+                  </div>
                 })}
               </div>
             </div>
-          </div>
-        ))}
+          })}
+        </div>
       </div>
     );
   }
 
-  // ── CURSO ─────────────────────────────────────────────────────────
-  function CourseView() {
-    const y=sy();
-    return (
-      <div>
-        <h3 style={{fontWeight:700,color:"#374151",textAlign:"center",marginBottom:16}}>Curso {y}/{y+1}</h3>
-        {fRes.map(r=>{
-          const md=MONTHS.map((_,mi)=>{const mn=MNUMS[mi],yr=mn>=8?y:y+1,last=new Date(yr,mn+1,0).getDate();let t=0;for(let d=1;d<=last;d++)HOURS.forEach(h=>{if(used(r.id,`${yr}-${mn}-${d}`,h)>0)t++;});return t;});
-          const mx=Math.max(...md,1);
-          return <div key={r.id} style={{marginBottom:20,borderRadius:16,overflow:"hidden",border:"1px solid #f3f4f6",boxShadow:"0 1px 4px rgba(0,0,0,0.08)"}}>
-            <div style={{padding:"12px 16px",display:"flex",alignItems:"center",gap:8,backgroundColor:r.color}}><span style={{fontSize:20}}>{r.icon}</span><span style={{fontWeight:700,color:"white"}}>{r.name}</span></div>
-            <div style={{backgroundColor:"white",padding:16}}>
-              <div style={{display:"flex",alignItems:"flex-end",gap:4,height:80}}>
-                {MONTHS.map((_,mi)=>{const h=Math.max(4,(md[mi]/mx)*72);return <div key={mi} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}><div style={{width:"100%",borderRadius:"4px 4px 0 0",height:h,backgroundColor:md[mi]>0?r.color:"#e5e7eb"}}/><span style={{color:"#9ca3af",fontSize:8}}>{MONTHS[mi].slice(0,3)}</span></div>;})}
-              </div>
-              <div style={{marginTop:8,display:"flex",flexWrap:"wrap",gap:4}}>
-                {md.map((v,mi)=>v>0&&<span key={mi} style={C.tag(r.color)}>{MONTHS[mi].slice(0,3)}: {v}</span>)}
-                {md.every(v=>v===0)&&<span style={{fontSize:12,color:"#9ca3af"}}>Sin reservas este curso</span>}
-              </div>
+  // ── RESUMEN ────────────────────────────────────────────────────────
+  function Overview() {
+    return <div style={{display:"grid",gap:20}}>
+      {wDates.map(d=>{
+        const ds=dKey(d), blk=blocked["b__"+ds];
+        return <div key={ds} style={C.card}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+            <div style={{width:40,height:40,borderRadius:12,backgroundColor:blk?"#fee2e2":"#eff6ff",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              <span style={{fontSize:10,fontWeight:700,color:blk?"#ef4444":"#3b82f6"}}>{DAYS[d.getDay()-1].slice(0,3)}</span>
+              <span style={{fontSize:16,fontWeight:800,color:blk?"#ef4444":"#3b82f6"}}>{d.getDate()}</span>
             </div>
-          </div>;
+            <div><h3 style={{margin:0,fontSize:15,fontWeight:700}}>{DAYS[d.getDay()-1]}, {d.getDate()} de {MONTHS[MNUMS.indexOf(d.getMonth())]}</h3>{blk&&<span style={{fontSize:12,color:"#ef4444",fontWeight:600}}>🚫 {blk}</span>}</div>
+          </div>
+          <div className="sx">
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{borderBottom:"1px solid #f3f4f6"}}><th style={{textAlign:"left",padding:8,color:"#9ca3af"}}>Tramo</th>{resources.map(r=><th key={r.id} style={{padding:8,color:"#9ca3af"}}>{r.icon}</th>)}</tr></thead>
+              <tbody>
+                {HLABELS.map((h,i)=>i===3?null:<tr key={h} style={{borderBottom:"1px solid #f9fafb"}}>
+                  <td style={{padding:8,fontWeight:600,color:"#4b5563"}}>{h}</td>
+                  {resources.map(r=>{
+                    const sl=slot(r.id,ds,h);
+                    return <td key={r.id} style={{padding:4,textAlign:"center"}}>
+                      {sl.length>0 ? <div style={{display:"flex",flexDirection:"column",gap:2}}>{sl.map((e,idx)=><div key={idx} style={{backgroundColor:r.color+"15",color:r.color,padding:"2px 4px",borderRadius:4,fontSize:10,fontWeight:700}}>{e.area}{e.qty>1?` (x${e.qty})`:""}</div>)}</div> : <span style={{color:"#e5e7eb"}}>—</span>}
+                    </td>
+                  })}
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      })}
+    </div>;
+  }
+
+  // ── MES ────────────────────────────────────────────────────────────
+  function MonthView() {
+    const {days,year,month}=monthDays(mIdx);
+    return <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+        <button onClick={()=>setMIdx(i=>Math.max(0,i-1))} style={C.btn("white","#374151")}>←</button>
+        <h3 style={{margin:0,fontSize:16,fontWeight:700}}>{MONTHS[mIdx]} {year}</h3>
+        <button onClick={()=>setMIdx(i=>Math.min(MONTHS.length-1,i+1))} style={C.btn("white","#374151")}>→</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+        {["L","M","X","J","V","S","D"].map(d=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:700,color:"#9ca3af",padding:4}}>{d}</div>)}
+        {days.map((d,i)=>{
+          if(!d) return <div key={i}/>;
+          const ds=`${year}-${month}-${d}`, blk=blocked["b__"+ds], isT=dKey(new Date())===ds;
+          let total=0; Object.keys(res).forEach(k=>{ if(k.includes(`||${ds}||`)) total+=res[k].reduce((a,b)=>a+b.qty,0); });
+          return <div key={i} style={{aspectRatio:"1/1",border:"1px solid #f3f4f6",borderRadius:12,padding:4,backgroundColor:blk?"#fee2e2":isT?"#eff6ff":"white",position:"relative"}}>
+            <span style={{fontSize:13,fontWeight:700,color:blk?"#ef4444":isT?"#3b82f6":"#374151"}}>{d}</span>
+            {total>0&&<div style={{position:"absolute",bottom:4,right:4,width:18,height:18,borderRadius:"50%",backgroundColor:"#3b82f6",color:"white",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{total}</div>}
+            {blk&&<div style={{fontSize:8,color:"#ef4444",fontWeight:700,overflow:"hidden",whiteSpace:"nowrap"}}>🚫</div>}
+          </div>
         })}
       </div>
-    );
+    </div>;
   }
 
-  // ── MIS RESERVAS ──────────────────────────────────────────────────
-  function Mine() {
-    if(!area) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>Selecciona tu área</div>;
-    const mine=[];
-    Object.entries(res).forEach(([k,entries])=>{ const my=entries.find(e=>e.area===area); if(my){const[rid,ds,h]=k.split("||");mine.push({rid,ds,h,qty:my.qty,r:resources.find(x=>x.id===rid)});} });
-    mine.sort((a,b)=>a.ds.localeCompare(b.ds)||a.h.localeCompare(b.h));
-    if(!mine.length) return <div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No tienes reservas activas</div>;
-    return <div style={{display:"grid",gap:8}}>
-      {mine.map(({rid,ds,h,qty,r})=>r&&<div key={rid+ds+h} style={{display:"flex",alignItems:"center",gap:12,...C.card,padding:12}}>
-        <div style={{width:40,height:40,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,backgroundColor:r.color+"22"}}>{r.icon}</div>
-        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h{qty>1?` · ${qty} unidades`:""}</div></div>
-        <button onClick={()=>cancelRes(rid,ds,h)} style={C.btn("#fee2e2","#f87171","4px 10px")}>Cancelar</button>
+  // ── CURSO (Estadísticas) ──────────────────────────────────────────
+  function CourseView() {
+    const stats = {};
+    Object.entries(res).forEach(([k,val])=>{
+      const [rid] = k.split("||");
+      val.forEach(e=>{
+        if(!stats[e.area]) stats[e.area] = {total:0, r:{}};
+        stats[e.area].total += e.qty;
+        stats[e.area].r[rid] = (stats[e.area].r[rid]||0) + e.qty;
+      });
+    });
+    const sorted = Object.entries(stats).sort((a,b)=>b[1].total - a[1].total);
+    return <div style={{display:"grid",gap:12}}>
+      <h3 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>Uso por Áreas (Curso {sy()}/{sy()+1})</h3>
+      {sorted.map(([a,st])=><div key={a} style={C.card}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontWeight:700,fontSize:14}}>{a}</span>
+          <span style={{fontSize:13,fontWeight:700,color:"#3b82f6"}}>{st.total} reservas</span>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+          {Object.entries(st.r).map(([rid,qty])=>{
+            const r=resources.find(x=>x.id===rid);
+            return <span key={rid} style={C.tag(r?.color||"#ccc")}>{r?.icon} {qty}</span>
+          })}
+        </div>
       </div>)}
     </div>;
   }
 
-  // ── ADMIN ─────────────────────────────────────────────────────────
+  // ── MIS RESERVAS ───────────────────────────────────────────────────
+  function Mine() {
+    if(!area) return <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}><div style={{fontSize:40,marginBottom:10}}>👤</div>Selecciona tu área para ver tus reservas</div>;
+    const my = [];
+    Object.entries(res).forEach(([k,val])=>{
+      const [rid,ds,h] = k.split("||");
+      const found = val.find(e=>e.area===area);
+      if(found) {
+        const d=new Date(ds.split("-")[0],ds.split("-")[1],ds.split("-")[2]);
+        if(d >= new Date(new Date().setHours(0,0,0,0))) my.push({rid,ds,h,qty:found.qty,d});
+      }
+    });
+    my.sort((a,b)=>a.d - b.d || HOURS.indexOf(a.h.split("-")[0]) - HOURS.indexOf(b.h.split("-")[0]));
+    return <div style={{display:"grid",gap:12}}>
+      {my.length===0 ? <div style={{textAlign:"center",padding:40,color:"#9ca3af"}}>No tienes reservas próximas</div>
+      : my.map((m,i)=>{
+        const r=resources.find(x=>x.id===m.rid);
+        return <div key={i} style={{...C.card,display:"flex",alignItems:"center",gap:12,borderLeft:`4px solid ${r.color}`}}>
+          <div style={{width:44,height:44,borderRadius:12,backgroundColor:r.color+"15",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{r.icon}</div>
+          <div style={{flex:1}}>
+            <div style={{fontWeight:700,fontSize:14,color:"#1e293b"}}>{r.name} {m.qty>1?` (x${m.qty})`:""}</div>
+            <div style={{fontSize:12,color:"#64748b"}}>{m.ds.split("-").reverse().join("/")} • {m.h}</div>
+          </div>
+          <button onClick={()=>cancelRes(m.rid,m.ds,m.h)} style={C.btn("#fee2e2","#ef4444","8px 12px")}>Anular</button>
+        </div>
+      })}
+    </div>;
+  }
+
+  // ── PANEL ADMIN ────────────────────────────────────────────────────
   function Admin() {
-    const allRes=Object.entries(res);
-    const stats={};
-    allRes.forEach(([k,entries])=>entries.forEach(e=>{ if(!stats[e.area])stats[e.area]={total:0,r:{}}; stats[e.area].total++; const[rid]=k.split("||"); stats[e.area].r[rid]=(stats[e.area].r[rid]||0)+1; }));
-    const sorted=Object.entries(stats).sort((a,b)=>b[1].total-a[1].total);
-
-    function startEdit(r){setEditId(r.id);setEditF({name:r.name,icon:r.icon,units:r.units,color:r.color});}
-    function saveEdit(id){
-      if(!editF.name.trim())return alert("El nombre no puede estar vacío.");
-      saveRsrc(resources.map(r=>r.id===id?{...r,...editF,units:parseInt(editF.units)||1}:r));
-      setEditId(null);
-    }
-    function delRes(id){
-      if(!window.confirm("¿Eliminar este recurso y todas sus reservas?"))return;
-      const n={...res}; Object.keys(n).forEach(k=>{if(k.startsWith(id+"||"))delete n[k];}); saveRes(n);
-      saveRsrc(resources.filter(r=>r.id!==id));
-    }
-
-    const addNewArea = () => {
-      if(!newAreaName.trim()) return alert("Escribe el nombre del área");
-      if(areas.includes(newAreaName)) return alert("Esa área ya existe");
-      const newList = [...areas, newAreaName];
-      saveAreas(newList);
-      setNewAreaName("");
-      alert("Área añadida correctamente");
+    const addNewR = () => {
+      if(!newR.name) return;
+      const id = newR.name.toLowerCase().replace(/\s+/g,"_") + "_" + Date.now();
+      const updated = [...resources, {...newR, id}];
+      saveRsrc(updated);
+      setNewR({name:"",icon:"📦",units:1,color:COLORS[0]});
     };
+    const delRes = (id) => { if(confirm("¿Eliminar este recurso?")) saveRsrc(resources.filter(x=>x.id!==id)); };
+    const startEdit = (r) => { setEditId(r.id); setEditF({...r}); };
+    const saveEdit = (id) => { saveRsrc(resources.map(x=>x.id===id?editF:x)); setEditId(null); };
+    
+    const addNewArea = () => { if(newAreaName && !areas.includes(newAreaName)) { saveAreas([...areas, newAreaName]); setNewAreaName(""); } };
+    const deleteArea = (a) => { if(confirm(`¿Eliminar el área ${a}?`)) saveAreas(areas.filter(x=>x!==a)); };
 
-    const deleteArea = (areaToDelete) => {
-      if(!window.confirm(`¿Eliminar el área "${areaToDelete}"?`)) return;
-      const newList = areas.filter(a => a !== areaToDelete);
-      saveAreas(newList);
-      alert("Área eliminada");
-    };
+    const stats = {};
+    Object.entries(res).forEach(([k,val])=>{
+      val.forEach(e=>{
+        if(!stats[e.area]) stats[e.area] = {total:0, r:{}};
+        stats[e.area].total += e.qty;
+        stats[e.area].r[k.split("||")[0]] = (stats[e.area].r[k.split("||")[0]]||0) + e.qty;
+      });
+    });
+    const sorted = Object.entries(stats).sort((a,b)=>b[1].total - a[1].total);
 
     return <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
-        <h2 style={{fontWeight:700,color:"#374151",fontSize:16,margin:0}}>🔐 Panel Administrador</h2>
-        <button onClick={()=>setAdmin(false)} style={C.btn("#fee2e2","#f87171")}>Salir</button>
-      </div>
-      <div style={{display:"flex",gap:4,marginBottom:20,overflowX:"auto"}}>
-        {[["res","🗑️ Reservas"],["blk","🚫 Días"],["rsrc","📦 Recursos"],["areas","👥 Áreas"],["rpt","📊 Informe"]].map(([t,l])=>(
-          <button key={t} onClick={()=>setATab(t)} style={{flexShrink:0,fontSize:11,padding:"8px 12px",borderRadius:8,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:aTab===t?"#1f2937":"#f3f4f6",color:aTab===t?"white":"#6b7280"}}>{l}</button>
+      <div style={{display:"flex",gap:8,marginBottom:20,overflowX:"auto",paddingBottom:4}}>
+        {[["res","🛠️ Recursos"],["areas","👥 Áreas"],["blk","🚫 Bloqueos"],["rpt","📊 Informe"]].map(([v,l])=> (
+          <button key={v} onClick={()=>setATab(v)} style={{...C.btn(aTab===v?"#1f2937":"white",aTab===v?"white":"#374151"),flexShrink:0}}>{l}</button>
         ))}
       </div>
 
-      {/* Reservas */}
-      {aTab==="res"&&<div>
-        <p style={{fontSize:12,color:"#9ca3af",marginBottom:12}}>{allRes.length} reservas en total</p>
-        {allRes.length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:32}}>No hay reservas</div>}
-        <div style={{display:"grid",gap:8}}>
-          {allRes.map(([k,entries])=>{ const[rid,ds,h]=k.split("||"),r=resources.find(x=>x.id===rid); if(!r)return null;
-            return <div key={k} style={{...C.card,padding:12}}>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                <span style={{fontSize:18}}>{r.icon}</span>
-                <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{r.name}</div><div style={{fontSize:11,color:"#9ca3af"}}>{ds} · {h}h</div></div>
-                <button onClick={()=>{const n={...res};delete n[k];saveRes(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Eliminar</button>
-              </div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{entries.map(e=><span key={e.area} style={C.tag(r.color)}>{e.area}{e.qty>1?` x${e.qty}`:""}</span>)}</div>
-            </div>;
-          })}
-        </div>
-      </div>}
-
-      {/* Días bloqueados */}
-      {aTab==="blk"&&<div>
-        <div style={{...C.card,marginBottom:16}}>
-          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Bloquear día</h4>
-          <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,marginBottom:8}}/>
-          <input type="text" value={bLabel} onChange={e=>setBLabel(e.target.value)} placeholder="Motivo (Festivo, Excursión...)" style={{...C.inp,marginBottom:12}}/>
-          <button onClick={()=>{if(!bDate)return alert("Selecciona fecha.");const d=new Date(bDate);saveBlk({...blocked,["b__"+dKey(d)]:bLabel||"Bloqueado"});setBDate("");setBLabel("");}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Bloquear</button>
+      {/* Bloqueos */}
+      {aTab==="blk"&&<div style={C.card}>
+        <h4 style={{margin:"0 0 12px",fontSize:14}}>Bloquear día (festivos, etc.)</h4>
+        <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+          <input type="date" value={bDate} onChange={e=>setBDate(e.target.value)} style={{...C.inp,width:150}}/>
+          <input placeholder="Motivo (ej: Semana Santa)" value={bLabel} onChange={e=>setBLabel(e.target.value)} style={{...C.inp,flex:1,minWidth:150}}/>
+          <button onClick={()=>{if(bDate&&bLabel){saveBlk({...blocked,["b__"+bDate]:bLabel});setBDate("");setBLabel("");}}} style={C.btn("#1f2937","white")}>Bloquear</button>
         </div>
         <div style={{display:"grid",gap:8}}>
-          {Object.entries(blocked).map(([k,label])=>{const ds=k.replace("b__","");return <div key={k} style={{...C.card,border:"1px solid #fed7aa",display:"flex",alignItems:"center",gap:10,padding:12}}><span style={{fontSize:20}}>🚫</span><div style={{flex:1}}><div style={{fontWeight:600,fontSize:13,color:"#374151"}}>{ds}</div><div style={{fontSize:11,color:"#fb923c"}}>{label}</div></div><button onClick={()=>{const n={...blocked};delete n[k];saveBlk(n);}} style={C.btn("#fee2e2","#f87171","4px 10px")}>Quitar</button></div>;})}
-          {Object.keys(blocked).length===0&&<div style={{textAlign:"center",color:"#9ca3af",padding:24}}>No hay días bloqueados</div>}
+          {Object.entries(blocked).map(([k,v])=><div key={k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:8,backgroundColor:"#f9fafb",borderRadius:10}}>
+            <span style={{fontSize:12,fontWeight:600}}>{k.replace("b__","").split("-").reverse().join("/")}: {v}</span>
+            <button onClick={()=>{const n={...blocked};delete n[k];saveBlk(n);}} style={C.btn("#fee2e2","#ef4444","4px 8px")}>✕</button>
+          </div>)}
         </div>
       </div>}
 
       {/* Recursos */}
-      {aTab==="rsrc"&&<div>
+      {aTab==="res"&&<div>
         <div style={{...C.card,marginBottom:16}}>
-          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir recurso</h4>
+          <h4 style={{fontWeight:600,color:"#374151",fontSize:13,margin:"0 0 12px"}}>➕ Añadir nuevo recurso</h4>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
-            <select value={newR.icon} onChange={e=>setNewR({...newR,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:8,fontSize:20,width:52}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
-            <input value={newR.name} onChange={e=>setNewR({...newR,name:e.target.value})} placeholder="Nombre" style={{...C.inp}}/>
+            <select value={newR.icon} onChange={e=>setNewR({...newR,icon:e.target.value})} style={{border:"1px solid #e5e7eb",borderRadius:10,padding:6,fontSize:20,width:48}}>{ICONS.map(ic=><option key={ic} value={ic}>{ic}</option>)}</select>
+            <input placeholder="Nombre del recurso" value={newR.name} onChange={e=>setNewR({...newR,name:e.target.value})} style={{...C.inp,flex:1}}/>
           </div>
           <div style={{display:"flex",gap:12,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,color:"#6b7280"}}>Unidades:</span><input type="number" min={1} value={newR.units} onChange={e=>setNewR({...newR,units:parseInt(e.target.value)||1})} style={{width:60,border:"1px solid #e5e7eb",borderRadius:10,padding:"6px 8px",fontSize:13,textAlign:"center"}}/></div>
             <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}><span style={{fontSize:12,color:"#6b7280"}}>Color:</span>{COLORS.map(c=><button key={c} onClick={()=>setNewR({...newR,color:c})} style={{width:22,height:22,borderRadius:"50%",backgroundColor:c,border:newR.color===c?"3px solid #1f2937":"2px solid transparent",cursor:"pointer"}}/>)}</div>
           </div>
-          <button onClick={()=>{if(!newR.name.trim())return alert("Indica el nombre.");const id=newR.name.toLowerCase().replace(/\s+/g,"_")+"_"+Date.now();saveRsrc([...resources,{...newR,id,units:parseInt(newR.units)||1}]);setNewR({name:"",icon:"📦",units:1,color:COLORS[0]});}} style={{...C.btn("#1f2937","white"),width:"100%"}}>Añadir</button>
+          <button onClick={addNewR} style={{...C.btn("#1f2937","white"),width:"100%"}}>Crear Recurso</button>
         </div>
         <div style={{display:"grid",gap:10}}>
           {resources.map(r=><div key={r.id} style={{...C.card,padding:12}}>
@@ -566,7 +540,10 @@ function App() {
 
   // RENDER
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)"}}>
+    <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#eff6ff,#f5f3ff)", position:"relative"}}>
+      {/* Botón de salida tipo X */}
+      <button className="exit-btn" onClick={() => { if(confirm("¿Deseas cerrar la aplicación?")) window.close(); }} title="Salir">✕</button>
+
       {/* Modal login admin */}
       {loginOpen&&<div style={{position:"fixed",inset:0,backgroundColor:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:16}}>
         <div style={{backgroundColor:"white",borderRadius:20,padding:28,width:"100%",maxWidth:320,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
@@ -622,13 +599,13 @@ function App() {
       {/* Header mejorado */}
       <div style={{backgroundColor:"white",boxShadow:"0 1px 3px rgba(0,0,0,0.08)",position:"sticky",top:0,zIndex:10}}>
         <div style={{maxWidth:900,margin:"0 auto",padding:"16px 16px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+          <div className="header-main-row" style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
             <span style={{fontSize:32}}>🏫</span>
             <div style={{flex:1}}>
               <h1 className="header-title">CEIP San José Obrero</h1>
               <p className="header-subtitle">Cuevas del Becerro • Reserva de espacios y dispositivos</p>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div className="header-actions" style={{display:"flex",alignItems:"center",gap:8}}>
               <span title={db?"Firebase conectado":"Sin conexión"} style={{fontSize:18}}>{db?"🟢":"🔴"}</span>
               {!admin && <select value={area} onChange={handleAreaChange} style={{fontSize:13,border:"1px solid #e5e7eb",borderRadius:10,padding:"8px 12px",backgroundColor:"white",color:"#374151",maxWidth:180}}>
                 <option value="">👤 Selecciona tu área</option>
@@ -639,7 +616,7 @@ function App() {
               </button>
             </div>
           </div>
-          {!admin&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          {!admin&&<div className="nav-buttons" style={{display:"flex",gap:6,flexWrap:"wrap"}}>
             {[["week","📅 Semana"],["overview","📋 Resumen"],["month","🗓️ Mes"],["course","📊 Curso"],["mine","⭐ Mis reservas"]].map(([v,l])=>(
               <button key={v} onClick={()=>setView(v)} style={{flex:1,minWidth:100,fontSize:12,padding:"9px 8px",borderRadius:10,border:"none",cursor:"pointer",fontWeight:600,backgroundColor:view===v?"#3b82f6":"#f3f4f6",color:view===v?"white":"#374151"}}>{l}</button>
             ))}
@@ -649,7 +626,7 @@ function App() {
 
       {/* Contenido */}
       <div style={{maxWidth:900,margin:"0 auto",padding:16}}>
-        {!admin&&view!=="mine"&&view!=="overview"&&<div style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
+        {!admin&&view!=="mine"&&view!=="overview"&&<div className="resource-filters" style={{display:"flex",gap:6,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
           <button onClick={()=>setRFilt("all")} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt==="all"?"#374151":"white",color:rFilt==="all"?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>Todos los recursos</button>
           {resources.map(r=><button key={r.id} onClick={()=>setRFilt(r.id)} style={{flexShrink:0,fontSize:12,padding:"7px 14px",borderRadius:999,fontWeight:600,border:"none",cursor:"pointer",backgroundColor:rFilt===r.id?r.color:"white",color:rFilt===r.id?"white":"#6b7280",boxShadow:"0 1px 3px rgba(0,0,0,0.08)"}}>{r.icon} {r.name}</button>)}
         </div>}
